@@ -1,7 +1,10 @@
-var builder = WebApplication.CreateBuilder(args);
+using AmsaAPI.Data;
+using Microsoft.AspNetCore.Mvc;
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<SqlDbConnection>();
+builder.Services.AddSingleton<MemberRepository>();
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -13,6 +16,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapGet("/", () => "Welcome to the Amsa API!");
+app.MapGet("/testdb", ([FromServices] SqlDbConnection db) =>
+{
+	using var connection = db.GetOpenConnection();
+	return Results.Ok("Database connection successful!");
+});
+app.MapGet("/Members", ([FromServices] MemberRepository memberRepository) =>
+{
+	var members = memberRepository.GetMembers();
+	return Results.Ok(members);
+});
 
 var summaries = new[]
 {
