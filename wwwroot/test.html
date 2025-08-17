@@ -1,37 +1,120 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AMSA API Test</title>
+    <title>AMSA API Test Suite</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        button { margin: 10px; padding: 10px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        button { margin: 5px; padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
         .result { border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: #f9f9f9; }
-        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; max-height: 400px; }
         .upload-section { border: 2px dashed #ccc; padding: 20px; margin: 20px 0; background: #fafafa; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+        input { padding: 5px; margin: 5px; }
     </style>
 </head>
 <body>
-    <h1>AMSA API Test Page</h1>
+    <h1>?? AMSA API Test Suite</h1>
     
-    <h2>Basic Endpoints:</h2>
-    <button onclick="testEndpoint('GET', '/api/import/test')">Test CSV File Location</button>
-    <button onclick="testEndpoint('GET', '/api/members')">Get All Members</button>
-    <button onclick="testEndpoint('GET', '/api/departments')">Get Departments</button>
-    <button onclick="testEndpoint('GET', '/api/units')">Get Units</button>
-    
-    <h2>Import Options:</h2>
-    
-    <h3>Option 1: Import from Server File (GET)</h3>
-    <p><em>Processes the excos_list_updated.csv file already on the server</em></p>
-    <button onclick="testEndpoint('GET', '/api/import/exco')">Import EXCO from Server File (GET)</button>
-    
-    <h3>Option 2: Upload and Import CSV File (POST)</h3>
-    <div class="upload-section">
-        <p><em>Upload your own CSV file for processing</em></p>
-        <input type="file" id="csvFile" accept=".csv" />
-        <button onclick="uploadAndImport()">Upload and Import CSV</button>
+    <div class="section">
+        <h3>?? Statistics & Dashboard</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('GET', '/api/stats/dashboard')">?? Dashboard</button>
+            <button onclick="testEndpoint('GET', '/api/stats/units')">?? Unit Stats</button>
+            <button onclick="testEndpoint('GET', '/api/stats/departments')">?? Dept Stats</button>
+        </div>
     </div>
-    
+
+    <div class="section">
+        <h3>?? Members</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('GET', '/api/members')">All Members</button>
+            <button onclick="testEndpoint('GET', '/api/members/1')">Member by ID</button>
+            <button onclick="testEndpoint('GET', '/api/members/mkan/1031')">By MKAN 1031</button>
+            <button onclick="testEndpoint('GET', '/api/members/unit/14')">Unit 14 Members</button>
+            <button onclick="testEndpoint('GET', '/api/members/department/10')">Dept 10 Members</button>
+            <button onclick="testEndpoint('GET', '/api/members/search/Abdul')">Search Abdul</button>
+            <button onclick="testEndpoint('GET', '/api/members/1/roles')">Member 1 Roles</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>?? Organization</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('GET', '/api/departments')">All Departments</button>
+            <button onclick="testEndpoint('GET', '/api/departments/10')">Department 10</button>
+            <button onclick="testEndpoint('GET', '/api/units')">All Units</button>
+            <button onclick="testEndpoint('GET', '/api/units/25')">Unit 25</button>
+            <button onclick="testEndpoint('GET', '/api/states')">All States</button>
+            <button onclick="testEndpoint('GET', '/api/states/1')">State 1</button>
+            <button onclick="testEndpoint('GET', '/api/nationals')">All Nationals</button>
+            <button onclick="testEndpoint('GET', '/api/levels')">All Levels</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>? Role Management</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('POST', '/api/members/1/roles/10')">Assign Role (1?10)</button>
+            <button onclick="testEndpoint('DELETE', '/api/members/1/roles/10')">Remove Role (1?10)</button>
+            <button onclick="testEndpoint('DELETE', '/api/members/1/roles')">Clear All Roles (1)</button>
+        </div>
+        
+        <div style="margin: 10px 0;">
+            <input type="number" id="memberId" placeholder="Member ID" value="1">
+            <input type="number" id="levelDeptId" placeholder="Level Dept ID" value="10">
+            <button onclick="assignCustomRole()">Assign Custom Role</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>?? Advanced Search</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('GET', '/api/units/state/1')">Units in State 1</button>
+            <button onclick="testEndpoint('GET', '/api/levels/1/departments')">Level 1 Depts</button>
+        </div>
+
+        <div style="margin: 10px 0;">
+            <input type="text" id="searchName" placeholder="Search name" value="Abdul">
+            <button onclick="searchMembers()">Search Members</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>?? Import Operations</h3>
+        <div class="grid">
+            <button onclick="testEndpoint('GET', '/api/import/test')">Test CSV File</button>
+            <button onclick="testEndpoint('GET', '/api/import/exco')">Import EXCO</button>
+        </div>
+
+        <div class="upload-section">
+            <input type="file" id="csvFile" accept=".csv">
+            <button onclick="uploadAndImport()">Upload CSV</button>
+        </div>
+    </div>
+
+    <div class="section" style="background: #ffebee;">
+        <h3>?? Bulk Operations</h3>
+        <button onclick="confirmClear()" style="background: #f44336;">Clear All EXCO</button>
+    </div>
+
+    <div class="section">
+        <h3>?? Custom Test</h3>
+        <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>DELETE</option>
+        </select>
+        <input type="text" id="customEndpoint" placeholder="/api/..." style="width: 300px;">
+        <button onclick="testCustom()">Test</button>
+    </div>
+
+    <div style="margin: 20px 0;">
+        <button onclick="clearResults()" style="background: #f44336;">Clear Results</button>
+    </div>
+
     <div id="results"></div>
 
     <script>
@@ -41,33 +124,24 @@
             try {
                 const response = await fetch(endpoint, {
                     method: method,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 
                 const data = await response.text();
-                
                 const resultDiv = document.createElement('div');
                 resultDiv.className = 'result';
+                
                 resultDiv.innerHTML = `
                     <h3>${method} ${endpoint}</h3>
-                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
-                    <p><strong>Response:</strong></p>
+                    <p><strong>Status:</strong> <span style="color: ${response.ok ? 'green' : 'red'}">${response.status} ${response.statusText}</span></p>
                     <pre>${data}</pre>
                 `;
                 
                 resultsDiv.appendChild(resultDiv);
+                resultDiv.scrollIntoView({ behavior: 'smooth' });
                 
             } catch (error) {
-                const resultDiv = document.createElement('div');
-                resultDiv.className = 'result';
-                resultDiv.innerHTML = `
-                    <h3>${method} ${endpoint}</h3>
-                    <p><strong>Error:</strong> ${error.message}</p>
-                `;
-                
-                resultsDiv.appendChild(resultDiv);
+                alert('Error: ' + error.message);
             }
         }
 
@@ -80,8 +154,6 @@
                 return;
             }
             
-            const resultsDiv = document.getElementById('results');
-            
             try {
                 const formData = new FormData();
                 formData.append('csvFile', file);
@@ -92,29 +164,46 @@
                 });
                 
                 const data = await response.text();
-                
                 const resultDiv = document.createElement('div');
                 resultDiv.className = 'result';
                 resultDiv.innerHTML = `
-                    <h3>POST /api/import/exco/upload</h3>
-                    <p><strong>File:</strong> ${file.name}</p>
-                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
-                    <p><strong>Response:</strong></p>
+                    <h3>Upload: ${file.name}</h3>
+                    <p><strong>Status:</strong> ${response.status}</p>
                     <pre>${data}</pre>
                 `;
                 
-                resultsDiv.appendChild(resultDiv);
+                document.getElementById('results').appendChild(resultDiv);
                 
             } catch (error) {
-                const resultDiv = document.createElement('div');
-                resultDiv.className = 'result';
-                resultDiv.innerHTML = `
-                    <h3>POST /api/import/exco/upload</h3>
-                    <p><strong>Error:</strong> ${error.message}</p>
-                `;
-                
-                resultsDiv.appendChild(resultDiv);
+                alert('Upload failed: ' + error.message);
             }
+        }
+
+        function assignCustomRole() {
+            const memberId = document.getElementById('memberId').value;
+            const levelDeptId = document.getElementById('levelDeptId').value;
+            testEndpoint('POST', `/api/members/${memberId}/roles/${levelDeptId}`);
+        }
+
+        function searchMembers() {
+            const name = document.getElementById('searchName').value;
+            testEndpoint('GET', `/api/members/search/${name}`);
+        }
+
+        function testCustom() {
+            const method = document.getElementById('method').value;
+            const endpoint = document.getElementById('customEndpoint').value;
+            testEndpoint(method, endpoint);
+        }
+
+        function confirmClear() {
+            if (confirm('Clear ALL EXCO assignments?')) {
+                testEndpoint('DELETE', '/api/exco/clear');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
         }
     </script>
 </body>
