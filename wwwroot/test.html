@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AMSA API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 10px; padding: 10px; }
+        .result { border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: #f9f9f9; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        .upload-section { border: 2px dashed #ccc; padding: 20px; margin: 20px 0; background: #fafafa; }
+    </style>
+</head>
+<body>
+    <h1>AMSA API Test Page</h1>
+    
+    <h2>Basic Endpoints:</h2>
+    <button onclick="testEndpoint('GET', '/api/import/test')">Test CSV File Location</button>
+    <button onclick="testEndpoint('GET', '/api/members')">Get All Members</button>
+    <button onclick="testEndpoint('GET', '/api/departments')">Get Departments</button>
+    <button onclick="testEndpoint('GET', '/api/units')">Get Units</button>
+    
+    <h2>Import Options:</h2>
+    
+    <h3>Option 1: Import from Server File (GET)</h3>
+    <p><em>Processes the excos_list_updated.csv file already on the server</em></p>
+    <button onclick="testEndpoint('GET', '/api/import/exco')">Import EXCO from Server File (GET)</button>
+    
+    <h3>Option 2: Upload and Import CSV File (POST)</h3>
+    <div class="upload-section">
+        <p><em>Upload your own CSV file for processing</em></p>
+        <input type="file" id="csvFile" accept=".csv" />
+        <button onclick="uploadAndImport()">Upload and Import CSV</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        async function testEndpoint(method, endpoint) {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.text();
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>${method} ${endpoint}</h3>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Response:</strong></p>
+                    <pre>${data}</pre>
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+                
+            } catch (error) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>${method} ${endpoint}</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+            }
+        }
+
+        async function uploadAndImport() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a CSV file first');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                const formData = new FormData();
+                formData.append('csvFile', file);
+                
+                const response = await fetch('/api/import/exco/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.text();
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>POST /api/import/exco/upload</h3>
+                    <p><strong>File:</strong> ${file.name}</p>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Response:</strong></p>
+                    <pre>${data}</pre>
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+                
+            } catch (error) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>POST /api/import/exco/upload</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+                
+                resultsDiv.appendChild(resultDiv);
+            }
+        }
+    </script>
+</body>
+</html>
