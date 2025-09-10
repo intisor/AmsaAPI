@@ -6,14 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AmsaAPI.FastEndpoints;
 
-public sealed class GetAllMembersEndpoint : Endpoint<object, List<MemberDetailResponse>>
+public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<object, List<MemberDetailResponse>>
 {
-    private readonly AmsaDbContext _db;
-
-    public GetAllMembersEndpoint(AmsaDbContext db)
-    {
-        _db = db;
-    }
+    private readonly AmsaDbContext _db = db;
 
     public override void Configure()
     {
