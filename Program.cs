@@ -1,5 +1,6 @@
 using AmsaAPI.Data;
 using AmsaAPI.Endpoints;
+using FastEndpoints;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 
@@ -17,14 +18,17 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 // Add OpenAPI/Swagger for development
-builder.Services.AddOpenApi();
+// builder.Services.AddOpenApi();
+
+// Add FastEndpoints
+builder.Services.AddFastEndpoints();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
@@ -38,11 +42,14 @@ app.UseStaticFiles();
 //    .AllowAnyMethod()
 //    .AllowAnyHeader());
 
+// Use FastEndpoints
+app.UseFastEndpoints();
+
 // Welcome message
 app.MapGet("/", () => "Welcome to the AMSA Nigeria API! Visit /test.html to test the endpoints.");
 
-// Map all endpoint groups
-app.MapMemberEndpoints();
+// Map all endpoint groups (keeping for now, will migrate gradually)
+// app.MapMemberEndpoints(); // Commented out to test FastEndpoints
 app.MapStatisticsEndpoints();
 app.MapImportEndpoints();
 app.MapDepartmentEndpoints();
