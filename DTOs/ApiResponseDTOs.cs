@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace AmsaAPI.DTOs
 {
     // Response DTOs for complex hierarchical data
+   
     public class MemberDetailResponse
     {
         public int MemberId { get; set; }
@@ -12,7 +13,7 @@ namespace AmsaAPI.DTOs
         public string? Phone { get; set; }
         public int Mkanid { get; set; }
         public UnitHierarchyDto Unit { get; set; } = new();
-        public List<MemberRoleDto> Roles { get; set; } = new();
+        public List<DepartmentAtLevelDto> Roles { get; set; } = [];
     }
 
     public class UnitHierarchyDto
@@ -35,12 +36,10 @@ namespace AmsaAPI.DTOs
         public string NationalName { get; set; } = string.Empty;
     }
 
-    public class MemberRoleDto
+    public class DepartmentAtLevelDto
     {
         public string DepartmentName { get; set; } = string.Empty;
         public string LevelType { get; set; } = string.Empty;
-        public string Scope { get; set; } = string.Empty;
-        public string? ScopeName { get; set; }
     }
 
     // Dashboard and Statistics DTOs

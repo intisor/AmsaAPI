@@ -45,66 +45,36 @@ namespace AmsaAPI.Endpoints
         {
             try
             {
-                // Get member data with organizational hierarchy
-                var memberData = await db.Database.SqlQueryRaw<MemberWithHierarchyDto>("""
-                    SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
-                           u.UnitId, u.UnitName, u.StateId,
-                           s.StateName, s.NationalId,
-                           n.NationalName
-                    FROM Members m
-                    INNER JOIN Units u ON m.UnitId = u.UnitId
-                    INNER JOIN States s ON u.StateId = s.StateId
-                    INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                    """).ToListAsync();
+                // Get member data with organizational hierarchy using FromSqlRaw
+                var membersWithHierarchy = await db.Members
+                    .FromSqlRaw("""
+                        SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid, m.UnitId
+                        FROM Members m
+                        """)
+                    .Include(m => m.Unit)
+                        .ThenInclude(u => u.State)
+                            .ThenInclude(s => s.National)
+                    .AsNoTracking()
+                    .ToListAsync();
 
-                // Get roles data separately for better performance
-                var rolesData = await db.Database.SqlQueryRaw<MemberRoleQueryDto>("""
-                    SELECT mld.MemberId,
-                           d.DepartmentName,
-                           l.LevelType,
-                           CASE 
-                               WHEN l.NationalId IS NOT NULL THEN 'National'
-                               WHEN l.StateId IS NOT NULL THEN 'State'
-                               WHEN l.UnitId IS NOT NULL THEN 'Unit'
-                               ELSE 'Unknown'
-                           END as Scope
-                    FROM MemberLevelDepartments mld
-                    INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-                    INNER JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-                    INNER JOIN Levels l ON ld.LevelId = l.LevelId
-                    """).ToListAsync();
+                // Get roles data using FromSqlRaw on MemberLevelDepartments
+                var rolesData = await db.MemberLevelDepartments
+                    .FromSqlRaw("""
+                        SELECT mld.MemberLevelDepartmentId, mld.MemberId, mld.LevelDepartmentId
+                        FROM MemberLevelDepartments mld
+                        """)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Department)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Level)
+                    .AsNoTracking()
+                    .ToListAsync();
 
-                // Combine member data with their roles
-                var response = memberData.Select(member => new MemberDetailResponse
+                // Transform to response DTOs using extension methods
+                var response = membersWithHierarchy.Select(member => 
                 {
-                    MemberId = member.MemberId,
-                    FirstName = member.FirstName,
-                    LastName = member.LastName,
-                    Email = member.Email,
-                    Phone = member.Phone,
-                    Mkanid = member.Mkanid,
-                    Unit = new UnitHierarchyDto
-                    {
-                        UnitId = member.UnitId,
-                        UnitName = member.UnitName,
-                        State = new StateHierarchyDto
-                        {
-                            StateId = member.StateId,
-                            StateName = member.StateName,
-                            National = new NationalDto
-                            {
-                                NationalId = member.NationalId,
-                                NationalName = member.NationalName
-                            }
-                        }
-                    },
-                    Roles = rolesData.Where(role => role.MemberId == member.MemberId)
-                                    .Select(role => new MemberRoleDto
-                                    {
-                                        DepartmentName = role.DepartmentName,
-                                        LevelType = role.LevelType,
-                                        Scope = role.Scope
-                                    }).ToList()
+                    var memberRoles = rolesData.Where(role => role.MemberId == member.MemberId).ToList();
+                    return member.ToDetailResponseWithRoles(memberRoles);
                 }).ToList();
 
                 return Results.Ok(response);
@@ -119,69 +89,38 @@ namespace AmsaAPI.Endpoints
         {
             try
             {
-                var memberData = await db.Database.SqlQueryRaw<MemberWithHierarchyDto>("""
-                    SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
-                           u.UnitId, u.UnitName, u.StateId,
-                           s.StateName, s.NationalId,
-                           n.NationalName
-                    FROM Members m
-                    INNER JOIN Units u ON m.UnitId = u.UnitId
-                    INNER JOIN States s ON u.StateId = s.StateId
-                    INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                    WHERE m.MemberId = {0}
-                    """, id).ToListAsync();
+                // Using FromSqlRaw with Include for proper navigation property loading
+                var member = await db.Members
+                    .FromSqlRaw("""
+                        SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid, m.UnitId
+                        FROM Members m
+                        WHERE m.MemberId = {0}
+                        """, id)
+                    .Include(m => m.Unit)
+                        .ThenInclude(u => u.State)
+                            .ThenInclude(s => s.National)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync();
 
-                var member = memberData.FirstOrDefault();
                 if (member == null)
                     return Results.NotFound($"Member with ID {id} not found");
 
-                var rolesData = await db.Database.SqlQueryRaw<MemberRoleQueryDto>("""
-                    SELECT mld.MemberId,
-                           d.DepartmentName,
-                           l.LevelType,
-                           CASE 
-                               WHEN l.NationalId IS NOT NULL THEN 'National'
-                               WHEN l.StateId IS NOT NULL THEN 'State'
-                               WHEN l.UnitId IS NOT NULL THEN 'Unit'
-                               ELSE 'Unknown'
-                           END as Scope
-                    FROM MemberLevelDepartments mld
-                    INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-                    INNER JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-                    INNER JOIN Levels l ON ld.LevelId = l.LevelId
-                    WHERE mld.MemberId = {0}
-                    """, id).ToListAsync();
+                // Get roles using FromSqlRaw on MemberLevelDepartments
+                var rolesData = await db.MemberLevelDepartments
+                    .FromSqlRaw("""
+                        SELECT mld.MemberLevelDepartmentId, mld.MemberId, mld.LevelDepartmentId
+                        FROM MemberLevelDepartments mld
+                        WHERE mld.MemberId = {0}
+                        """, id)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Department)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Level)
+                    .AsNoTracking()
+                    .ToListAsync();
 
-                var response = new MemberDetailResponse
-                {
-                    MemberId = member.MemberId,
-                    FirstName = member.FirstName,
-                    LastName = member.LastName,
-                    Email = member.Email,
-                    Phone = member.Phone,
-                    Mkanid = member.Mkanid,
-                    Unit = new UnitHierarchyDto
-                    {
-                        UnitId = member.UnitId,
-                        UnitName = member.UnitName,
-                        State = new StateHierarchyDto
-                        {
-                            StateId = member.StateId,
-                            StateName = member.StateName,
-                            National = new NationalDto
-                            {
-                                NationalId = member.NationalId,
-                                NationalName = member.NationalName
-                            }
-                        }
-                    },
-                    Roles = rolesData.Select(role => new MemberRoleDto
-                    {
-                        DepartmentName = role.DepartmentName,
-                        LevelType = role.LevelType,
-                        Scope = role.Scope
-                    }).ToList()
-                };
+                // Use extension method for transformation
+                var response = member.ToDetailResponseWithRoles(rolesData);
 
                 return Results.Ok(response);
             }
@@ -195,69 +134,38 @@ namespace AmsaAPI.Endpoints
         {
             try
             {
-                var memberData = await db.Database.SqlQueryRaw<MemberWithHierarchyDto>("""
-                    SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
-                           u.UnitId, u.UnitName, u.StateId,
-                           s.StateName, s.NationalId,
-                           n.NationalName
-                    FROM Members m
-                    INNER JOIN Units u ON m.UnitId = u.UnitId
-                    INNER JOIN States s ON u.StateId = s.StateId
-                    INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                    WHERE m.Mkanid = {0}
-                    """, mkanId).ToListAsync();
+                // Using FromSqlRaw with Include for proper navigation property loading
+                var member = await db.Members
+                    .FromSqlRaw("""
+                        SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid, m.UnitId
+                        FROM Members m
+                        WHERE m.Mkanid = {0}
+                        """, mkanId)
+                    .Include(m => m.Unit)
+                        .ThenInclude(u => u.State)
+                            .ThenInclude(s => s.National)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync();
 
-                var member = memberData.FirstOrDefault();
                 if (member == null)
                     return Results.NotFound($"Member with MKAN ID {mkanId} not found");
 
-                var rolesData = await db.Database.SqlQueryRaw<MemberRoleQueryDto>("""
-                    SELECT mld.MemberId,
-                           d.DepartmentName,
-                           l.LevelType,
-                           CASE 
-                               WHEN l.NationalId IS NOT NULL THEN 'National'
-                               WHEN l.StateId IS NOT NULL THEN 'State'
-                               WHEN l.UnitId IS NOT NULL THEN 'Unit'
-                               ELSE 'Unknown'
-                           END as Scope
-                    FROM MemberLevelDepartments mld
-                    INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-                    INNER JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-                    INNER JOIN Levels l ON ld.LevelId = l.LevelId
-                    WHERE mld.MemberId = {0}
-                    """, member.MemberId).ToListAsync();
+                // Get roles using FromSqlRaw on MemberLevelDepartments
+                var rolesData = await db.MemberLevelDepartments
+                    .FromSqlRaw("""
+                        SELECT mld.MemberLevelDepartmentId, mld.MemberId, mld.LevelDepartmentId
+                        FROM MemberLevelDepartments mld
+                        WHERE mld.MemberId = {0}
+                        """, member.MemberId)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Department)
+                    .Include(mld => mld.LevelDepartment)
+                        .ThenInclude(ld => ld.Level)
+                    .AsNoTracking()
+                    .ToListAsync();
 
-                var response = new MemberDetailResponse
-                {
-                    MemberId = member.MemberId,
-                    FirstName = member.FirstName,
-                    LastName = member.LastName,
-                    Email = member.Email,
-                    Phone = member.Phone,
-                    Mkanid = member.Mkanid,
-                    Unit = new UnitHierarchyDto
-                    {
-                        UnitId = member.UnitId,
-                        UnitName = member.UnitName,
-                        State = new StateHierarchyDto
-                        {
-                            StateId = member.StateId,
-                            StateName = member.StateName,
-                            National = new NationalDto
-                            {
-                                NationalId = member.NationalId,
-                                NationalName = member.NationalName
-                            }
-                        }
-                    },
-                    Roles = rolesData.Select(role => new MemberRoleDto
-                    {
-                        DepartmentName = role.DepartmentName,
-                        LevelType = role.LevelType,
-                        Scope = role.Scope
-                    }).ToList()
-                };
+                // Use extension method for transformation
+                var response = member.ToDetailResponseWithRoles(rolesData);
 
                 return Results.Ok(response);
             }
@@ -289,7 +197,7 @@ namespace AmsaAPI.Endpoints
                     })
                     .ToListAsync();
 
-                return members.Any()
+                return members.Count != 0
                     ? Results.Ok(members)
                     : Results.NotFound($"No members found for unit {unitId}");
             }
@@ -457,30 +365,5 @@ namespace AmsaAPI.Endpoints
                 return Results.Problem($"Failed to delete member: {ex.Message}");
             }
         }
-    }
-
-    // Helper DTOs for raw SQL queries
-    public class MemberWithHierarchyDto
-    {
-        public int MemberId { get; set; }
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string? Email { get; set; }
-        public string? Phone { get; set; }
-        public int Mkanid { get; set; }
-        public int UnitId { get; set; }
-        public string UnitName { get; set; } = string.Empty;
-        public int StateId { get; set; }
-        public string StateName { get; set; } = string.Empty;
-        public int NationalId { get; set; }
-        public string NationalName { get; set; } = string.Empty;
-    }
-
-    public class MemberRoleQueryDto
-    {
-        public int MemberId { get; set; }
-        public string DepartmentName { get; set; } = string.Empty;
-        public string LevelType { get; set; } = string.Empty;
-        public string Scope { get; set; } = string.Empty;
     }
 }

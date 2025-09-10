@@ -33,10 +33,10 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 // Add CORS if needed for frontend applications
-app.UseCors(policy => policy
-    .AllowAnyOrigin()
-    .AllowAnyMethod()
-    .AllowAnyHeader());
+//app.UseCors(policy => policy
+//    .AllowAnyOrigin()
+//    .AllowAnyMethod()
+//    .AllowAnyHeader());
 
 // Welcome message
 app.MapGet("/", () => "Welcome to the AMSA Nigeria API! Visit /test.html to test the endpoints.");

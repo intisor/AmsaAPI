@@ -47,13 +47,10 @@ namespace AmsaAPI.Extensions
                         }
                     }
                 },
-                Roles = roles.Select(role => new MemberRoleDto
+                Roles = roles.Select(role => new DepartmentAtLevelDto
                 {
                     DepartmentName = role.LevelDepartment?.Department?.DepartmentName ?? string.Empty,
                     LevelType = role.LevelDepartment?.Level?.LevelType ?? string.Empty,
-                    Scope = role.LevelDepartment?.Level?.NationalId != null ? "National" :
-                           role.LevelDepartment?.Level?.StateId != null ? "State" :
-                           role.LevelDepartment?.Level?.UnitId != null ? "Unit" : "Unknown"
                 }).ToList()
             };
         }
@@ -87,17 +84,12 @@ namespace AmsaAPI.Extensions
             };
         }
 
-        private static MemberRoleDto ToRoleDto(this MemberLevelDepartment mld)
+        private static DepartmentAtLevelDto ToRoleDto(this MemberLevelDepartment mld)
         {
-            var scope = mld.LevelDepartment.Level.NationalId != null ? "National" :
-                       mld.LevelDepartment.Level.StateId != null ? "State" :
-                       mld.LevelDepartment.Level.UnitId != null ? "Unit" : "Unknown";
-
-            return new MemberRoleDto
+            return new DepartmentAtLevelDto
             {
                 DepartmentName = mld.LevelDepartment.Department.DepartmentName,
                 LevelType = mld.LevelDepartment.Level.LevelType,
-                Scope = scope
             };
         }
 
