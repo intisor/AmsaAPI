@@ -10,49 +10,32 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AmsaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Configure JSON serialization to handle reference cycles
+// Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     options.SerializerOptions.WriteIndented = true;
 });
 
-// Add OpenAPI/Swagger for development
-// builder.Services.AddOpenApi();
-
 // Add FastEndpoints
 builder.Services.AddFastEndpoints();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
-    // app.MapOpenApi();
-}
-
+// Configure pipeline
 app.UseHttpsRedirection();
-
-// Enable static files (for test.html and other static content)
 app.UseStaticFiles();
-
-// Add CORS if needed for frontend applications
-//app.UseCors(policy => policy
-//    .AllowAnyOrigin()
-//    .AllowAnyMethod()
-//    .AllowAnyHeader());
-
-// Use FastEndpoints
 app.UseFastEndpoints();
 
 // Welcome message
-app.MapGet("/", () => "Welcome to the AMSA Nigeria API! Visit /test.html to test the endpoints.");
+app.MapGet("/", () => "Welcome to the AMSA Nigeria API! " +
+    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html");
 
-// Map all endpoint groups (keeping for now, will migrate gradually)
-// app.MapMemberEndpoints(); // Commented out to test FastEndpoints
+// Map all minimal API endpoints
+app.MapMemberEndpoints();
+app.MapOrganizationEndpoints();
+app.MapDepartmentEndpoints();
 app.MapStatisticsEndpoints();
 app.MapImportEndpoints();
-app.MapDepartmentEndpoints();
-app.MapOrganizationEndpoints();
 
 app.Run();
