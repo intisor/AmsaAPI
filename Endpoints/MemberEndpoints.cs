@@ -156,8 +156,7 @@ public static class MemberEndpoints
         try
         {
             var members = await db.Members
-                .Where(m => m.MemberLevelDepartments.Any(mld => 
-                    mld.LevelDepartment.DepartmentId == departmentId))
+                .Where(m => m.MemberLevelDepartments.Any(mld => mld.LevelDepartment.DepartmentId == departmentId))
                 .Select(m => new MemberSummaryResponse
                 {
                     MemberId = m.MemberId,
@@ -181,8 +180,12 @@ public static class MemberEndpoints
     {
         try
         {
+            var collation = "SQL_Latin1_General_CP1_CI_AI";
+            var pattern = $"%{name}%";
             var members = await db.Members
-                .Where(m => m.FirstName.Contains(name) || m.LastName.Contains(name))
+                .Where(m =>
+                    EF.Functions.Like(EF.Functions.Collate(m.FirstName, collation), pattern) ||
+                    EF.Functions.Like(EF.Functions.Collate(m.LastName, collation), pattern))
                 .Select(m => new MemberSummaryResponse
                 {
                     MemberId = m.MemberId,
