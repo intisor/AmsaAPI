@@ -39,8 +39,17 @@ public static class DepartmentEndpoints
                 GROUP BY d.DepartmentId, d.DepartmentName
                 ORDER BY d.DepartmentName
                 """).ToListAsync();
+            var departmentsEf = await db.Departments
+                .AsNoTracking()
+                .OrderBy(d => d.DepartmentName)
+                .Select(d => new
+                {
+                    d.DepartmentId,
+                    d.DepartmentName
+                })
+                .ToListAsync();
 
-            return Results.Ok(departments);
+            return Results.Ok(departmentsEf);
         }
         catch (Exception ex)
         {
