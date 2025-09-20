@@ -29,7 +29,7 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
             .AsNoTracking()
             .ToListAsync(ct);
 
-        var response = membersWithHierarchy.Select(member => 
+        var response = membersWithHierarchy.Select(member =>
         {
             var memberRoles = rolesData.Where(role => role.MemberId == member.MemberId).ToList();
             return member.ToDetailResponseWithRoles(memberRoles);
@@ -157,7 +157,7 @@ public sealed class GetMembersByDepartmentEndpoint(AmsaDbContext db) : Endpoint<
     public override async Task HandleAsync(GetMembersByDepartmentRequest req, CancellationToken ct)
     {
         var members = await db.Members
-            .Where(m => m.MemberLevelDepartments.Any(mld => 
+            .Where(m => m.MemberLevelDepartments.Any(mld =>
                 mld.LevelDepartment.DepartmentId == req.DepartmentId))
             .Select(m => new MemberSummaryResponse
             {
