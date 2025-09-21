@@ -165,7 +165,6 @@ public class DepartmentLevelDto
 {
     public int LevelDepartmentId { get; set; }
     public string LevelType { get; set; } = string.Empty;
-    public string Scope { get; set; } = string.Empty;
     public int MemberCount { get; set; }
 }
 

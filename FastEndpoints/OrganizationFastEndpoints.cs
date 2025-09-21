@@ -17,17 +17,19 @@ public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyReques
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var units = await db.Database.SqlQueryRaw<UnitSummaryDto>("""
-            SELECT u.UnitId, u.UnitName, u.StateId, s.StateName, n.NationalName,
-                   COUNT(m.MemberId) as MemberCount
-            FROM Units u
-            INNER JOIN States s ON u.StateId = s.StateId
-            INNER JOIN Nationals n ON s.NationalId = n.NationalId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            GROUP BY u.UnitId, u.UnitName, u.StateId, s.StateName, n.NationalName
-            ORDER BY s.StateName, u.UnitName
-            """).ToListAsync(ct);
 
+        var units = await db.Units
+            .AsNoTracking()
+            .Select(u => new UnitSummaryDto
+            {
+                UnitId = u.UnitId,
+                UnitName = u.UnitName,
+                StateId = u.StateId,
+                StateName = u.State.StateName,
+                NationalName = u.State.National.NationalName,
+                MemberCount = u.Members.Count
+            })
+            .ToListAsync(ct);
         await Send.OkAsync(units, ct);
     }
 }

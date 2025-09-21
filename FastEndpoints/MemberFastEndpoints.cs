@@ -18,21 +18,18 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var membersWithHierarchy = await db.Members
+        var membersWithAllData = await db.Members
             .Include(m => m.Unit.State.National)
+            .Include(m => m.MemberLevelDepartments)
+                .ThenInclude(mld => mld.LevelDepartment.Department)
+            .Include(m => m.MemberLevelDepartments)                 // Need separate include for Level
+                .ThenInclude(mld => mld.LevelDepartment.Level)
             .AsNoTracking()
             .ToListAsync(ct);
 
-        var rolesData = await db.MemberLevelDepartments
-            .Include(mld => mld.LevelDepartment.Department)
-            .Include(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var response = membersWithHierarchy.Select(member =>
+        var response = membersWithAllData.Select(member =>
         {
-            var memberRoles = rolesData.Where(role => role.MemberId == member.MemberId).ToList();
-            return member.ToDetailResponseWithRoles(memberRoles);
+            return member.ToDetailResponseWithRoles(member.MemberLevelDepartments.ToList());
         }).ToList();
 
         await Send.OkAsync(response, ct);
