@@ -19,13 +19,11 @@ public sealed class GetAllDepartmentsEndpoint(AmsaDbContext db) : Endpoint<Empty
     {
    
         var departments = await db.Departments
-            .Include(d => d.LevelDepartments)
-            .ThenInclude(ld => ld.MemberLevelDepartments)
             .Select(d => new DepartmentSummaryDto
             {
                 DepartmentId = d.DepartmentId,
                 DepartmentName = d.DepartmentName,
-                MemberCount = d.LevelDepartments.SelectMany(ld => ld.MemberLevelDepartments).Count()
+                MemberCount = db.MemberLevelDepartments.Count(mld => d.LevelDepartments.Select(ld => ld.LevelDepartmentId).Contains(mld.LevelDepartmentId))
             })
             .OrderBy(d => d.DepartmentName)
             .ToListAsync(ct);

@@ -27,7 +27,7 @@ public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyReques
                 StateId = u.StateId,
                 StateName = u.State.StateName,
                 NationalName = u.State.National.NationalName,
-                MemberCount = u.Members.Count
+                MemberCount = u.Members.Count()
             })
             .ToListAsync(ct);
         await Send.OkAsync(units, ct);
