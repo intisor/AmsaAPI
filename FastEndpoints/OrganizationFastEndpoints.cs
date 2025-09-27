@@ -46,50 +46,66 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
 
     public override async Task HandleAsync(GetUnitByIdRequest req, CancellationToken ct)
     {
-        var unit = await db.Database.SqlQueryRaw<UnitDetailDto>("""
-            SELECT u.UnitId, u.UnitName, s.StateId, s.StateName, 
-                   n.NationalId, n.NationalName,
-                   COUNT(DISTINCT m.MemberId) as MemberCount
-            FROM Units u
-            INNER JOIN States s ON u.StateId = s.StateId
-            INNER JOIN Nationals n ON s.NationalId = n.NationalId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            WHERE u.UnitId = {0}
-            GROUP BY u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName
-            """, req.Id).ToListAsync(ct);
+        var query = db.Units
+            .AsNoTracking()
+            .Include(u => u.State)
+                .ThenInclude(s => s.National)
+            .Include(u => u.Members)
+            .Where(u => u.UnitId == req.Id)
+            .Select(u => new UnitDetailDto
+            {
+                UnitId = u.UnitId,
+                UnitName = u.UnitName,
+                StateId = u.State.StateId,
+                StateName = u.State.StateName,
+                NationalId = u.State.National.NationalId,
+                NationalName = u.State.National.NationalName,
+                MemberCount = u.Members.Count()
+            });
+        var unit = await query.FirstOrDefaultAsync(ct);
 
-        var unitDetail = unit.FirstOrDefault();
-        if (unitDetail == null)
+
+        if (unit == null)
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
         // Get members for this unit
-        var members = await db.Database.SqlQueryRaw<UnitMemberDto>("""
-            SELECT MemberId, FirstName, LastName, Email, Phone, Mkanid
-            FROM Members
-            WHERE UnitId = {0}
-            ORDER BY FirstName, LastName
-            """, req.Id).ToListAsync(ct);
+        var members = await db.Members
+            .AsNoTracking()
+            .Where(m => m.UnitId == req.Id)
+            .Select(m => new UnitMemberDto
+            {
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Email = m.Email,
+                Phone = m.Phone,
+                Mkanid = m.Mkanid
+            })
+            .OrderBy(m => m.FirstName).ThenBy(m => m.LastName)
+            .ToListAsync(ct);
 
         // Get EXCO roles for this unit
-        var excoRoles = await db.Database.SqlQueryRaw<UnitExcoDto>("""
-            SELECT m.FirstName, m.LastName, m.Mkanid, d.DepartmentName, l.LevelType
-            FROM Members m
-            INNER JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
-            INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-            INNER JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-            INNER JOIN Levels lv ON ld.LevelId = lv.LevelId
-            WHERE lv.UnitId = {0}
-            ORDER BY d.DepartmentName
-            """, req.Id).ToListAsync(ct);
+        var excoQuery = db.MemberLevelDepartments
+            .AsNoTracking()
+            .Where(mld => mld.LevelDepartment.Level.UnitId == req.Id)
+            .Select(mld => new UnitExcoDto
+            {
+                FirstName = mld.Member.FirstName,
+                LastName = mld.Member.LastName,
+                Mkanid = mld.Member.Mkanid,
+                DepartmentName = mld.LevelDepartment.Department.DepartmentName,
+                LevelType = mld.LevelDepartment.Level.LevelType
+            });
 
+        var excoMembers = await excoQuery.ToListAsync(ct);
         var response = new UnitDetailResponse
         {
-            Unit = unitDetail,
+            Unit = unit,
             Members = members,
-            ExcoRoles = excoRoles
+            ExcoRoles = excoMembers
         };
 
         await Send.OkAsync(response, ct);
@@ -108,19 +124,20 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
 
     public override async Task HandleAsync(GetUnitsByStateRequest req, CancellationToken ct)
     {
-        var units = await db.Database.SqlQueryRaw<UnitStateDto>("""
-            SELECT u.UnitId, u.UnitName, 
-                   COUNT(DISTINCT m.MemberId) as MemberCount,
-                   COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
-            FROM Units u
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            LEFT JOIN Levels l ON u.UnitId = l.UnitId
-            LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
-            LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-            WHERE u.StateId = {0}
-            GROUP BY u.UnitId, u.UnitName
-            ORDER BY u.UnitName
-            """, req.StateId).ToListAsync(ct);
+
+        var query = db.Units
+            .AsNoTracking()
+            .Where(u => u.StateId == req.StateId)
+            .Select(u => new UnitStateDto
+            {
+                UnitId = u.UnitId,
+                UnitName = u.UnitName,
+                MemberCount = u.Members.Count(),
+                ExcoCount = db.MemberLevelDepartments
+                              .Count(mld => mld.LevelDepartment.Level.UnitId == u.UnitId)
+            })
+            .OrderBy(u => u.UnitName);      
+        var units = await query.ToListAsync(ct);
 
         await Send.OkAsync(units, ct);
     }
@@ -138,28 +155,27 @@ public sealed class GetAllStatesEndpoint(AmsaDbContext db) : Endpoint<EmptyReque
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var states = await db.Database.SqlQueryRaw<StateSummaryDto>("""
-            SELECT s.StateId, s.StateName, n.NationalName,
-                   COUNT(DISTINCT u.UnitId) as UnitCount,
-                   COUNT(DISTINCT m.MemberId) as MemberCount,
-                   COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
-            FROM States s
-            INNER JOIN Nationals n ON s.NationalId = n.NationalId
-            LEFT JOIN Units u ON s.StateId = u.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            LEFT JOIN Levels l ON s.StateId = l.StateId
-            LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
-            LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-            GROUP BY s.StateId, s.StateName, n.NationalName
-            ORDER BY s.StateName
-            """).ToListAsync(ct);
+        var query = db.States
+            .AsNoTracking()
+            .Select(s => new StateSummaryDto
+            {
+                StateId = s.StateId,
+                StateName = s.StateName,
+                NationalName = s.National.NationalName,
+                UnitCount = s.Units.Count(),
+                MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
+                ExcoCount = db.MemberLevelDepartments
+                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+            })
+            .OrderBy(s => s.StateId); 
+        var states = await query.ToListAsync(ct);
 
         await Send.OkAsync(states, ct);
     }
 }
 
 // Get State By ID Endpoint
-public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateByIdRequest, StateDetailDto>
+public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateByIdRequest, StateSummaryDto>
 {
     public override void Configure()
     {
@@ -170,26 +186,28 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
 
     public override async Task HandleAsync(GetStateByIdRequest req, CancellationToken ct)
     {
-        var state = await db.Database.SqlQueryRaw<StateDetailDto>("""
-            SELECT s.StateId, s.StateName, n.NationalId, n.NationalName,
-                   COUNT(DISTINCT u.UnitId) as UnitCount,
-                   COUNT(DISTINCT m.MemberId) as MemberCount
-            FROM States s
-            INNER JOIN Nationals n ON s.NationalId = n.NationalId
-            LEFT JOIN Units u ON s.StateId = u.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            WHERE s.StateId = {0}
-            GROUP BY s.StateId, s.StateName, n.NationalId, n.NationalName
-            """, req.Id).ToListAsync(ct);
+        var query = db.States
+            .AsNoTracking()
+            .Where(s => s.StateId == req.Id)
+            .Select(s => new StateSummaryDto
+            {
+                StateId = s.StateId,
+                StateName = s.StateName,
+                NationalName = s.National.NationalName,
+                UnitCount = s.Units.Count(),
+                MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
+                ExcoCount = db.MemberLevelDepartments
+                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+            });
 
-        var stateDetail = state.FirstOrDefault();
-        if (stateDetail == null)
+        var state = await query.FirstOrDefaultAsync();
+        if (state == null)
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
-        await Send.OkAsync(stateDetail, ct);
+        await Send.OkAsync(state, ct);
     }
 }
 
@@ -205,22 +223,19 @@ public sealed class GetAllNationalsEndpoint(AmsaDbContext db) : Endpoint<EmptyRe
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var nationals = await db.Database.SqlQueryRaw<NationalSummaryDto>("""
-            SELECT n.NationalId, n.NationalName,
-                   COUNT(DISTINCT s.StateId) as StateCount,
-                   COUNT(DISTINCT u.UnitId) as UnitCount,
-                   COUNT(DISTINCT m.MemberId) as MemberCount,
-                   COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
-            FROM Nationals n
-            LEFT JOIN States s ON n.NationalId = s.NationalId
-            LEFT JOIN Units u ON s.StateId = u.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            LEFT JOIN Levels l ON n.NationalId = l.NationalId
-            LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
-            LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-            GROUP BY n.NationalId, n.NationalName
-            ORDER BY n.NationalName
-            """).ToListAsync(ct);
+        var query = db.Nationals
+            .AsNoTracking()
+            .Select(n => new NationalSummaryDto
+            {
+                NationalId = n.NationalId,
+                NationalName = n.NationalName,
+                StateCount = n.States.Count(),
+                UnitCount = n.States.SelectMany(s => s.Units).Count(),
+                MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId),
+                ExcoCount = db.MemberLevelDepartments
+                              .Count(mld => mld.LevelDepartment.Level.NationalId == n.NationalId)
+            });
+        var nationals = await query.ToListAsync(ct);
 
         await Send.OkAsync(nationals, ct);
     }
@@ -238,20 +253,19 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
 
     public override async Task HandleAsync(GetNationalByIdRequest req, CancellationToken ct)
     {
-        var national = await db.Database.SqlQueryRaw<NationalDetailDto>("""
-            SELECT n.NationalId, n.NationalName,
-                   COUNT(DISTINCT s.StateId) as StateCount,
-                   COUNT(DISTINCT u.UnitId) as UnitCount,
-                   COUNT(DISTINCT m.MemberId) as MemberCount
-            FROM Nationals n
-            LEFT JOIN States s ON n.NationalId = s.NationalId
-            LEFT JOIN Units u ON s.StateId = u.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            WHERE n.NationalId = {0}
-            GROUP BY n.NationalId, n.NationalName
-            """, req.Id).ToListAsync(ct);
+        var query = db.Nationals
+            .AsNoTracking()
+            .Where(n => n.NationalId == req.Id)
+            .Select(n => new NationalDetailDto
+            {
+                NationalId = n.NationalId,
+                NationalName = n.NationalName,
+                StateCount = n.States.Count(),
+                UnitCount = n.States.SelectMany(s => s.Units).Count(),
+                MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId)
+            });
 
-        var nationalDetail = national.FirstOrDefault();
+        var nationalDetail = await query.FirstOrDefaultAsync(ct);
         if (nationalDetail == null)
         {
             await Send.NotFoundAsync(ct);
