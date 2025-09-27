@@ -30,7 +30,7 @@ A comprehensive RESTful API built with .NET 9 for managing the organizational st
 
 - **.NET 9 SDK** or later
 - **SQL Server** (LocalDB, Express, or Full)
-- **Visual Studio 2024** or **VS Code**
+- **Visual Studio 2022** or **VS Code**
 
 ### Installation
 
