@@ -28,6 +28,16 @@ public sealed class GetDashboardStatsEndpoint(AmsaDbContext db) : Endpoint<Empty
             })
             .ToListAsync(ct);
 
+        var excoBreakdown = await db.MemberLevelDepartments
+            .GroupBy(mld => new { }) 
+            .Select(g => new ExcoBreakdownDto
+            {
+                NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
+                StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
+                UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
+            })
+            .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
+
         var response = new DashboardStatsResponse
         {
             TotalMembers = await db.Members.CountAsync(ct),
@@ -38,9 +48,9 @@ public sealed class GetDashboardStatsEndpoint(AmsaDbContext db) : Endpoint<Empty
             TotalLevels = await db.Levels.CountAsync(ct),
             ExcoMembers = await db.MemberLevelDepartments.CountAsync(ct),
             RecentMembers = recentMembers,
-            NationalExcoCount = await db.Levels.Where(l => l.NationalId != null).SelectMany(l => l.LevelDepartments).SelectMany(ld => ld.MemberLevelDepartments).CountAsync(ct),
-            StateExcoCount = await db.Levels.Where(l => l.StateId != null).SelectMany(l => l.LevelDepartments).SelectMany(ld => ld.MemberLevelDepartments).CountAsync(ct),
-            UnitExcoCount = await db.Levels.Where(l => l.UnitId != null).SelectMany(l => l.LevelDepartments).SelectMany(ld => ld.MemberLevelDepartments).CountAsync(ct)
+            NationalExcoCount = excoBreakdown.NationalExco,
+            StateExcoCount = excoBreakdown.StateExco,
+            UnitExcoCount = excoBreakdown.UnitExco
         };
 
         await Send.OkAsync(response, ct);
