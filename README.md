@@ -22,6 +22,7 @@ A comprehensive RESTful API built with .NET 9 for managing the organizational st
 - [💾 Bulk Operations](#-bulk-operations)
 - [🧪 Testing](#-testing)
 - [🚀 Deployment](#-deployment)
+- [## Architecture Decision Records](#architecture-decision-records)
 
 ## 🚀 Getting Started
 
@@ -691,4 +692,19 @@ For support and questions:
 
 ---
 
+## Architecture Decision Records
+This project uses Architecture Decision Records (ADRs) to document significant architectural decisions. See [ADR Index](docs/adr/adr-index.md) for a catalog of all decisions and [ADR Process](docs/adr/ADR-PROCESS.md) for guidelines on creating and managing ADRs.
+
+---
+
 **Built with ❤️ for AMSA Nigeria (Ahmadiyya Muslim Students Association)** 🇳🇬
+
+## Running Benchmarks
+
+To run performance benchmarks:
+
+1. Ensure test database is set up (LocalDB or SQL Server)
+2. Run: `dotnet run -- benchmark`
+3. View reports in `Benchmarks/reports/`
+
+The BenchmarkRunner executes all benchmarks and generates HTML reports with detailed performance metrics.

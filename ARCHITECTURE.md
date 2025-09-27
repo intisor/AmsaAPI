@@ -214,3 +214,6 @@ public async Task CreateMember_ValidData_ReturnsCreated()
 5. **Test endpoints**: Visit `/test.html` for interactive testing
 
 The API is now structured for production use with clear separation of concerns, excellent performance, and maintainable code! ??
+
+## Architecture Decision Records
+For detailed rationale behind architectural choices, see the [ADR Index](docs/adr/adr-index.md) and [ADR Process](docs/adr/ADR-PROCESS.md).

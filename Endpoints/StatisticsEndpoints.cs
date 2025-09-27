@@ -78,19 +78,9 @@ public static class StatisticsEndpoints
     {
         try
         {
-            var unitStats = await db.Database.SqlQueryRaw<UnitStatsDto>("""
-                SELECT u.UnitId, u.UnitName, s.StateName,
-                       COUNT(m.MemberId) as MemberCount,
-                       COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
-                FROM Units u
-                INNER JOIN States s ON u.StateId = s.StateId
-                LEFT JOIN Members m ON u.UnitId = m.UnitId
-                LEFT JOIN Levels l ON u.UnitId = l.UnitId
-                LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
-                LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-                GROUP BY u.UnitId, u.UnitName, s.StateName
-                ORDER BY COUNT(m.MemberId) DESC
-                """).ToListAsync();
+            var unitStats = await db.Database
+                .SqlQueryRaw<UnitStatsDto>("SELECT u.UnitId, u.UnitName, COUNT(m.MemberId) as MemberCount FROM Units u LEFT JOIN Members m ON u.UnitId = m.UnitId GROUP BY u.UnitId, u.UnitName")
+                .ToListAsync();
 
             return Results.Ok(unitStats);
         }

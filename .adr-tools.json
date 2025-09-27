@@ -1,0 +1,16 @@
+{
+  "adrDirectory": "docs/adr",
+  "defaultTemplate": "standard",
+  "editor": "code",
+  "numberingFormat": "D3",
+  "templates": {
+    "standard": "templates/adr-template.md",
+    "performance": "templates/performance-adr-template.md",
+    "security": "templates/security-adr-template.md"
+  },
+  "indexFile": "adr-index.md",
+  "statusTransitions": {
+    "proposed": ["accepted", "rejected"],
+    "accepted": ["deprecated", "superseded"]
+  }
+}
