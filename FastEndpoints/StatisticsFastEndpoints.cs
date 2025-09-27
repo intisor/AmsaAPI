@@ -69,25 +69,38 @@ public sealed class GetOrganizationSummaryEndpoint(AmsaDbContext db) : Endpoint<
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        // Get top units
-        var topUnits = await db.Database.SqlQueryRaw<TopUnitDto>("""
-            SELECT TOP 10 u.UnitName, s.StateName as State, COUNT(m.MemberId) as MemberCount
-            FROM Units u
-            INNER JOIN States s ON u.StateId = s.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            GROUP BY u.UnitName, s.StateName
-            ORDER BY COUNT(m.MemberId) DESC
-            """).ToListAsync(ct);
+        var topUnits = await db.Units
+            .Select(u => new TopUnitDto
+            {
+                UnitName = u.UnitName,
+                State = u.State.StateName,
+                MemberCount = u.Members.Count
+            })
+            .OrderByDescending(u => u.MemberCount)
+            .Take(10)
+            .ToListAsync(ct);
 
-        // Get top departments
-        var topDepartments = await db.Database.SqlQueryRaw<TopDepartmentDto>("""
-            SELECT TOP 10 d.DepartmentName, COUNT(mld.MemberLevelDepartmentId) as MemberCount
-            FROM Departments d
-            LEFT JOIN LevelDepartments ld ON d.DepartmentId = ld.DepartmentId
-            LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-            GROUP BY d.DepartmentName
-            ORDER BY COUNT(mld.MemberLevelDepartmentId) DESC
-            """).ToListAsync(ct);
+        var topDepartments = await db.Departments
+            .Select(d => new TopDepartmentDto
+            {
+                DepartmentName = d.DepartmentName,
+                MemberCount = d.LevelDepartments
+                    .SelectMany(ld => ld.MemberLevelDepartments)
+                    .Count()
+            })
+            .OrderByDescending(d => d.MemberCount)
+            .Take(10)
+            .ToListAsync(ct);
+
+        var excoBreakdown = await db.MemberLevelDepartments
+            .GroupBy(mld => new { })
+            .Select(g => new ExcoBreakdownDto
+            {
+                NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
+                StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
+                UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
+            })
+            .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
 
         var response = new OrganizationSummaryResponse
         {
@@ -101,24 +114,7 @@ public sealed class GetOrganizationSummaryEndpoint(AmsaDbContext db) : Endpoint<
                 TotalLevels = await db.Levels.CountAsync(ct),
                 TotalExcoPositions = await db.MemberLevelDepartments.CountAsync(ct)
             },
-            ExcoBreakdown = new ExcoBreakdownDto
-            {
-                NationalExco = await db.Levels
-                    .Where(l => l.NationalId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync(ct),
-                StateExco = await db.Levels
-                    .Where(l => l.StateId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync(ct),
-                UnitExco = await db.Levels
-                    .Where(l => l.UnitId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync(ct)
-            },
+            ExcoBreakdown = excoBreakdown,
             TopUnits = topUnits,
             TopDepartments = topDepartments
         };
