@@ -18,33 +18,21 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        try
-        {
-            var membersWithAllData = await db.Members
-                .Include(m => m.Unit.State.National)
-                .Include(m => m.MemberLevelDepartments)
-                    .ThenInclude(mld => mld.LevelDepartment.Department)
-                .Include(m => m.MemberLevelDepartments)                 // Need separate include for Level
-                    .ThenInclude(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync(ct);
+        var membersWithAllData = await db.Members
+            .Include(m => m.Unit.State.National)
+            .Include(m => m.MemberLevelDepartments)
+                .ThenInclude(mld => mld.LevelDepartment.Department)
+            .Include(m => m.MemberLevelDepartments)                 // Need separate include for Level
+                .ThenInclude(mld => mld.LevelDepartment.Level)
+            .AsNoTracking()
+            .ToListAsync(ct);
 
-            var response = membersWithAllData.Select(member =>
-            {
-                return member.ToDetailResponseWithRoles(member.MemberLevelDepartments.ToList());
-            }).ToList();
+        var response = membersWithAllData.Select(member =>
+        {
+            return member.ToDetailResponseWithRoles(member.MemberLevelDepartments.ToList());
+        }).ToList();
 
-            await Send.OkAsync(response, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            // Request was cancelled - don't log as error
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to retrieve members: {ex.Message}"));
-        }
+        await Send.OkAsync(response, ct);
     }
 }
 
@@ -60,43 +48,33 @@ public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMember
 
     public override async Task HandleAsync(GetMemberByIdRequest req, CancellationToken ct)
     {
-        try
+        // Input validation using Results pattern
+        if (req.Id <= 0)
         {
-            if (req.Id <= 0)
-            {
-                await Send.ResultAsync(Results.BadRequest("Invalid member ID. ID must be greater than 0."));
-                return;
-            }
-
-            var member = await db.Members
-                .Include(m => m.Unit.State.National)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.MemberId == req.Id, ct);
-
-            if (member == null)
-            {
-                await Send.NotFoundAsync(ct);
-                return;
-            }
-
-            var rolesData = await db.MemberLevelDepartments
-                .Where(mld => mld.MemberId == req.Id)
-                .Include(mld => mld.LevelDepartment.Department)
-                .Include(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync(ct);
-
-            var response = member.ToDetailResponseWithRoles(rolesData);
-            await Send.OkAsync(response, ct);
+            await Send.ResultAsync(Results.BadRequest("Invalid member ID. ID must be greater than 0."));
+            return;
         }
-        catch (OperationCanceledException)
+
+        var member = await db.Members
+            .Include(m => m.Unit.State.National)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.MemberId == req.Id, ct);
+
+        if (member == null)
         {
-            throw;
+            await Send.NotFoundAsync(ct);
+            return;
         }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to retrieve member with ID {req.Id}: {ex.Message}"));
-        }
+
+        var rolesData = await db.MemberLevelDepartments
+            .Where(mld => mld.MemberId == req.Id)
+            .Include(mld => mld.LevelDepartment.Department)
+            .Include(mld => mld.LevelDepartment.Level)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var response = member.ToDetailResponseWithRoles(rolesData);
+        await Send.OkAsync(response, ct);
     }
 }
 
@@ -112,43 +90,33 @@ public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMe
 
     public override async Task HandleAsync(GetMemberByMkanIdRequest req, CancellationToken ct)
     {
-        try
+        // Input validation using Results pattern
+        if (req.MkanId <= 0)
         {
-            if (req.MkanId <= 0)
-            {
-                await Send.ResultAsync(Results.BadRequest("Invalid MKAN ID. ID must be greater than 0."));
-                return;
-            }
-
-            var member = await db.Members
-                .Include(m => m.Unit.State.National)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Mkanid == req.MkanId, ct);
-
-            if (member == null)
-            {
-                await Send.NotFoundAsync(ct);
-                return;
-            }
-
-            var rolesData = await db.MemberLevelDepartments
-                .Where(mld => mld.MemberId == member.MemberId)
-                .Include(mld => mld.LevelDepartment.Department)
-                .Include(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync(ct);
-
-            var response = member.ToDetailResponseWithRoles(rolesData);
-            await Send.OkAsync(response, ct);
+            await Send.ResultAsync(Results.BadRequest("Invalid MKAN ID. ID must be greater than 0."));
+            return;
         }
-        catch (OperationCanceledException)
+
+        var member = await db.Members
+            .Include(m => m.Unit.State.National)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Mkanid == req.MkanId, ct);
+
+        if (member == null)
         {
-            throw;
+            await Send.NotFoundAsync(ct);
+            return;
         }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to retrieve member with MKAN ID {req.MkanId}: {ex.Message}"));
-        }
+
+        var rolesData = await db.MemberLevelDepartments
+            .Where(mld => mld.MemberId == member.MemberId)
+            .Include(mld => mld.LevelDepartment.Department)
+            .Include(mld => mld.LevelDepartment.Level)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var response = member.ToDetailResponseWithRoles(rolesData);
+        await Send.OkAsync(response, ct);
     }
 }
 
@@ -164,48 +132,33 @@ public sealed class GetMembersByUnitEndpoint(AmsaDbContext db) : Endpoint<GetMem
 
     public override async Task HandleAsync(GetMembersByUnitRequest req, CancellationToken ct)
     {
-        try
+        // Input validation using Results pattern
+        if (req.UnitId <= 0)
         {
-            if (req.UnitId <= 0)
+            await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
+            return;
+        }
+
+        var members = await db.Members
+            .Where(m => m.UnitId == req.UnitId)
+            .Select(m => new MemberSummaryResponse
             {
-                await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
-                return;
-            }
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Email = m.Email,
+                Phone = m.Phone,
+                Mkanid = m.Mkanid
+            })
+            .ToListAsync(ct);
 
-            // First verify the unit exists
-            var unitExists = await db.Units
-                .AsNoTracking()
-                .AnyAsync(u => u.UnitId == req.UnitId, ct);
-
-            if (!unitExists)
-            {
-                await Send.NotFoundAsync(ct);
-                return;
-            }
-
-            var members = await db.Members
-                .Where(m => m.UnitId == req.UnitId)
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync(ct);
-
-            await Send.OkAsync(members, ct);
-        }
-        catch (OperationCanceledException)
+        if (members.Count == 0)
         {
-            throw;
+            await Send.NotFoundAsync(ct);
+            return;
         }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to retrieve members for unit {req.UnitId}: {ex.Message}"));
-        }
+
+        await Send.OkAsync(members, ct);
     }
 }
 
@@ -221,49 +174,28 @@ public sealed class GetMembersByDepartmentEndpoint(AmsaDbContext db) : Endpoint<
 
     public override async Task HandleAsync(GetMembersByDepartmentRequest req, CancellationToken ct)
     {
-        try
+        // Input validation using Results pattern
+        if (req.DepartmentId <= 0)
         {
-            if (req.DepartmentId <= 0)
+            await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
+            return;
+        }
+
+        var members = await db.Members
+            .Where(m => m.MemberLevelDepartments.Any(mld =>
+                mld.LevelDepartment.DepartmentId == req.DepartmentId))
+            .Select(m => new MemberSummaryResponse
             {
-                await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
-                return;
-            }
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Email = m.Email,
+                Phone = m.Phone,
+                Mkanid = m.Mkanid
+            })
+            .ToListAsync(ct);
 
-            // First verify the department exists
-            var departmentExists = await db.Departments
-                .AsNoTracking()
-                .AnyAsync(d => d.DepartmentId == req.DepartmentId, ct);
-
-            if (!departmentExists)
-            {
-                await Send.NotFoundAsync(ct);
-                return;
-            }
-
-            var members = await db.Members
-                .Where(m => m.MemberLevelDepartments.Any(mld =>
-                    mld.LevelDepartment.DepartmentId == req.DepartmentId))
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync(ct);
-
-            await Send.OkAsync(members, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to retrieve members for department {req.DepartmentId}: {ex.Message}"));
-        }
+        await Send.OkAsync(members, ct);
     }
 }
 
@@ -279,36 +211,26 @@ public sealed class SearchMembersByNameEndpoint(AmsaDbContext db) : Endpoint<Sea
 
     public override async Task HandleAsync(SearchMembersByNameRequest req, CancellationToken ct)
     {
-        try
+        // Input validation using Results pattern
+        if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Length < 2)
         {
-            if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Length < 2)
+            await Send.ResultAsync(Results.BadRequest("Search name must be at least 2 characters long."));
+            return;
+        }
+
+        var members = await db.Members
+            .Where(m => m.FirstName.Contains(req.Name) || m.LastName.Contains(req.Name))
+            .Select(m => new MemberSummaryResponse
             {
-                await Send.ResultAsync(Results.BadRequest("Search name must be at least 2 characters long."));
-                return;
-            }
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Email = m.Email,
+                Phone = m.Phone,
+                Mkanid = m.Mkanid
+            })
+            .ToListAsync(ct);
 
-            var members = await db.Members
-                .Where(m => m.FirstName.Contains(req.Name) || m.LastName.Contains(req.Name))
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync(ct);
-
-            await Send.OkAsync(members, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem($"Failed to search members by name '{req.Name}': {ex.Message}"));
-        }
+        await Send.OkAsync(members, ct);
     }
 }

@@ -17,54 +17,43 @@ public sealed class GetDashboardStatsEndpoint(AmsaDbContext db) : Endpoint<Empty
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        try
-        {
-            var recentMembers = await db.Members
-                .OrderByDescending(m => m.MemberId)
-                .Take(5)
-                .Select(m => new RecentMemberDto
-                {
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync(ct);
-
-            var excoBreakdown = await db.MemberLevelDepartments
-                .GroupBy(mld => new { }) 
-                .Select(g => new ExcoBreakdownDto
-                {
-                    NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
-                    StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
-                    UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
-                })
-                .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
-
-            var response = new DashboardStatsResponse
+        var recentMembers = await db.Members
+            .OrderByDescending(m => m.MemberId)
+            .Take(5)
+            .Select(m => new RecentMemberDto
             {
-                TotalMembers = await db.Members.CountAsync(ct),
-                TotalUnits = await db.Units.CountAsync(ct),
-                TotalDepartments = await db.Departments.CountAsync(ct),
-                TotalStates = await db.States.CountAsync(ct),
-                TotalNationals = await db.Nationals.CountAsync(ct),
-                TotalLevels = await db.Levels.CountAsync(ct),
-                ExcoMembers = await db.MemberLevelDepartments.CountAsync(ct),
-                RecentMembers = recentMembers,
-                NationalExcoCount = excoBreakdown.NationalExco,
-                StateExcoCount = excoBreakdown.StateExco,
-                UnitExcoCount = excoBreakdown.UnitExco
-            };
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Mkanid = m.Mkanid
+            })
+            .ToListAsync(ct);
 
-            await Send.OkAsync(response, ct);
-        }
-        catch (OperationCanceledException)
+        var excoBreakdown = await db.MemberLevelDepartments
+            .GroupBy(mld => new { }) 
+            .Select(g => new ExcoBreakdownDto
+            {
+                NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
+                StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
+                UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
+            })
+            .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
+
+        var response = new DashboardStatsResponse
         {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem("Failed to retrieve dashboard statistics: " + ex.Message));
-        }
+            TotalMembers = await db.Members.CountAsync(ct),
+            TotalUnits = await db.Units.CountAsync(ct),
+            TotalDepartments = await db.Departments.CountAsync(ct),
+            TotalStates = await db.States.CountAsync(ct),
+            TotalNationals = await db.Nationals.CountAsync(ct),
+            TotalLevels = await db.Levels.CountAsync(ct),
+            ExcoMembers = await db.MemberLevelDepartments.CountAsync(ct),
+            RecentMembers = recentMembers,
+            NationalExcoCount = excoBreakdown.NationalExco,
+            StateExcoCount = excoBreakdown.StateExco,
+            UnitExcoCount = excoBreakdown.UnitExco
+        };
+
+        await Send.OkAsync(response, ct);
     }
 }
 
@@ -80,68 +69,57 @@ public sealed class GetOrganizationSummaryEndpoint(AmsaDbContext db) : Endpoint<
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        try
-        {
-            var topUnits = await db.Units
-                .Select(u => new TopUnitDto
-                {
-                    UnitName = u.UnitName,
-                    State = u.State.StateName,
-                    MemberCount = u.Members.Count
-                })
-                .OrderByDescending(u => u.MemberCount)
-                .Take(10)
-                .ToListAsync(ct);
-
-            var topDepartments = await db.Departments
-                .Select(d => new TopDepartmentDto
-                {
-                    DepartmentName = d.DepartmentName,
-                    MemberCount = d.LevelDepartments
-                        .SelectMany(ld => ld.MemberLevelDepartments)
-                        .Count()
-                })
-                .OrderByDescending(d => d.MemberCount)
-                .Take(10)
-                .ToListAsync(ct);
-
-            var excoBreakdown = await db.MemberLevelDepartments
-                .GroupBy(mld => new { })
-                .Select(g => new ExcoBreakdownDto
-                {
-                    NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
-                    StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
-                    UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
-                })
-                .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
-
-            var response = new OrganizationSummaryResponse
+        var topUnits = await db.Units
+            .Select(u => new TopUnitDto
             {
-                Overview = new OverviewDto
-                {
-                    TotalNationals = await db.Nationals.CountAsync(ct),
-                    TotalStates = await db.States.CountAsync(ct),
-                    TotalUnits = await db.Units.CountAsync(ct),
-                    TotalMembers = await db.Members.CountAsync(ct),
-                    TotalDepartments = await db.Departments.CountAsync(ct),
-                    TotalLevels = await db.Levels.CountAsync(ct),
-                    TotalExcoPositions = await db.MemberLevelDepartments.CountAsync(ct)
-                },
-                ExcoBreakdown = excoBreakdown,
-                TopUnits = topUnits,
-                TopDepartments = topDepartments
-            };
+                UnitName = u.UnitName,
+                State = u.State.StateName,
+                MemberCount = u.Members.Count
+            })
+            .OrderByDescending(u => u.MemberCount)
+            .Take(10)
+            .ToListAsync(ct);
 
-            await Send.OkAsync(response, ct);
-        }
-        catch (OperationCanceledException)
+        var topDepartments = await db.Departments
+            .Select(d => new TopDepartmentDto
+            {
+                DepartmentName = d.DepartmentName,
+                MemberCount = d.LevelDepartments
+                    .SelectMany(ld => ld.MemberLevelDepartments)
+                    .Count()
+            })
+            .OrderByDescending(d => d.MemberCount)
+            .Take(10)
+            .ToListAsync(ct);
+
+        var excoBreakdown = await db.MemberLevelDepartments
+            .GroupBy(mld => new { })
+            .Select(g => new ExcoBreakdownDto
+            {
+                NationalExco = g.Count(mld => mld.LevelDepartment.Level.NationalId != null),
+                StateExco = g.Count(mld => mld.LevelDepartment.Level.StateId != null),
+                UnitExco = g.Count(mld => mld.LevelDepartment.Level.UnitId != null)
+            })
+            .FirstOrDefaultAsync(ct) ?? new ExcoBreakdownDto();
+
+        var response = new OrganizationSummaryResponse
         {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem("Failed to retrieve organization summary: " + ex.Message));
-        }
+            Overview = new OverviewDto
+            {
+                TotalNationals = await db.Nationals.CountAsync(ct),
+                TotalStates = await db.States.CountAsync(ct),
+                TotalUnits = await db.Units.CountAsync(ct),
+                TotalMembers = await db.Members.CountAsync(ct),
+                TotalDepartments = await db.Departments.CountAsync(ct),
+                TotalLevels = await db.Levels.CountAsync(ct),
+                TotalExcoPositions = await db.MemberLevelDepartments.CountAsync(ct)
+            },
+            ExcoBreakdown = excoBreakdown,
+            TopUnits = topUnits,
+            TopDepartments = topDepartments
+        };
+
+        await Send.OkAsync(response, ct);
     }
 }
 
@@ -159,48 +137,37 @@ public sealed class GetOrganizationHierarchyEndpoint(AmsaDbContext db) : Endpoin
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        try
-        {
-            var hierarchyData = await db.Nationals
-                .AsNoTracking()
-                .Include(n => n.States.OrderBy(s => s.StateName))
-                    .ThenInclude(s => s.Units.OrderBy(u => u.UnitName))
-                        .ThenInclude(u => u.Members)
-                .OrderBy(n => n.NationalName)
-                .ToListAsync(ct);
+        var hierarchyData = await db.Nationals
+            .AsNoTracking()
+            .Include(n => n.States.OrderBy(s => s.StateName))
+                .ThenInclude(s => s.Units.OrderBy(u => u.UnitName))
+                    .ThenInclude(u => u.Members)
+            .OrderBy(n => n.NationalName)
+            .ToListAsync(ct);
 
-            var treeData = hierarchyData.Select(national => 
-                new HierarchyNationalNodeDto(
-                    national.NationalId,
-                    national.NationalName,
-                    national.States.SelectMany(s => s.Units)
-                                    .Sum(u => u.Members.Count()),
-                    national.States.Select(state => 
-                        new HierarchyStateNodeDto(
-                            state.StateId,
-                            state.StateName,
-                            state.Units.Sum(u => u.Members.Count()),    
-                            state.Units.Select(unit => 
-                                new HierarchyUnitNodeDto(
-                                    unit.UnitId,
-                                    unit.UnitName,
-                                    unit.Members.Count
-                                )
-                            ).ToList()
-                        )
-                    ).ToList()
-                )
-            ).ToList();
+        var treeData = hierarchyData.Select(national => 
+            new HierarchyNationalNodeDto(
+                national.NationalId,
+                national.NationalName,
+                national.States.SelectMany(s => s.Units)
+                                .Sum(u => u.Members.Count()),
+                national.States.Select(state => 
+                    new HierarchyStateNodeDto(
+                        state.StateId,
+                        state.StateName,
+                        state.Units.Sum(u => u.Members.Count()),    
+                        state.Units.Select(unit => 
+                            new HierarchyUnitNodeDto(
+                                unit.UnitId,
+                                unit.UnitName,
+                                unit.Members.Count
+                            )
+                        ).ToList()
+                    )
+                ).ToList()
+            )
+        ).ToList();
 
-            await Send.OkAsync(treeData, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            await Send.ResultAsync(Results.Problem("Failed to retrieve organization hierarchy: " + ex.Message));
-        }
+        await Send.OkAsync(treeData, ct);
     }
 }
