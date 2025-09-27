@@ -123,31 +123,51 @@ public sealed class GetOrganizationSummaryEndpoint(AmsaDbContext db) : Endpoint<
     }
 }
 
-// Get Organization Hierarchy Endpoint
-public sealed class GetOrganizationHierarchyEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, List<HierarchyDto>>
-{
+
+
+// Get Organization Hierarchy Endpoint - Final Optimized Version
+public sealed class GetOrganizationHierarchyEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, IReadOnlyList<HierarchyNationalNodeDto>>
+{   
     public override void Configure()
     {
         Get("/api/hierarchy");
         AllowAnonymous();
-        Summary(s => s.Summary = "Get complete organizational hierarchy");
+        Summary(s => s.Summary = "Get organizational hierarchy in tree structure");
     }
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var hierarchy = await db.Database.SqlQueryRaw<HierarchyDto>("""
-            SELECT n.NationalId, n.NationalName,
-                   s.StateId, s.StateName,
-                   u.UnitId, u.UnitName,
-                   COUNT(m.MemberId) as MemberCount
-            FROM Nationals n
-            LEFT JOIN States s ON n.NationalId = s.NationalId
-            LEFT JOIN Units u ON s.StateId = u.StateId
-            LEFT JOIN Members m ON u.UnitId = m.UnitId
-            GROUP BY n.NationalId, n.NationalName, s.StateId, s.StateName, u.UnitId, u.UnitName
-            ORDER BY n.NationalName, s.StateName, u.UnitName
-            """).ToListAsync(ct);
+        var hierarchyData = await db.Nationals
+            .AsNoTracking()
+            .Include(n => n.States.OrderBy(s => s.StateName))
+                .ThenInclude(s => s.Units.OrderBy(u => u.UnitName))
+                    .ThenInclude(u => u.Members)
+            .OrderBy(n => n.NationalName)
+            .ToListAsync(ct);
 
-        await Send.OkAsync(hierarchy, ct);
+        var treeData = hierarchyData.Select(national => 
+            new HierarchyNationalNodeDto(
+                national.NationalId,
+                national.NationalName,
+                national.States.SelectMany(s => s.Units)
+                                .Sum(u => u.Members.Count()),
+                national.States.Select(state => 
+                    new HierarchyStateNodeDto(
+                        state.StateId,
+                        state.StateName,
+                        state.Units.Sum(u => u.Members.Count()),    
+                        state.Units.Select(unit => 
+                            new HierarchyUnitNodeDto(
+                                unit.UnitId,
+                                unit.UnitName,
+                                unit.Members.Count
+                            )
+                        ).ToList()
+                    )
+                ).ToList()
+            )
+        ).ToList();
+
+        await Send.OkAsync(treeData, ct);
     }
 }
