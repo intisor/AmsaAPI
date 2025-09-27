@@ -17,18 +17,28 @@ public sealed class GetAllDepartmentsEndpoint(AmsaDbContext db) : Endpoint<Empty
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-   
-        var departments = await db.Departments
-            .Select(d => new DepartmentSummaryDto
-            {
-                DepartmentId = d.DepartmentId,
-                DepartmentName = d.DepartmentName,
-                MemberCount = db.MemberLevelDepartments.Count(mld => d.LevelDepartments.Select(ld => ld.LevelDepartmentId).Contains(mld.LevelDepartmentId))
-            })
-            .OrderBy(d => d.DepartmentName)
-            .ToListAsync(ct);
+        try
+        {
+            var departments = await db.Departments
+                .Select(d => new DepartmentSummaryDto
+                {
+                    DepartmentId = d.DepartmentId,
+                    DepartmentName = d.DepartmentName,
+                    MemberCount = db.MemberLevelDepartments.Count(mld => d.LevelDepartments.Select(ld => ld.LevelDepartmentId).Contains(mld.LevelDepartmentId))
+                })
+                .OrderBy(d => d.DepartmentName)
+                .ToListAsync(ct);
 
-        await Send.OkAsync(departments, ct);
+            await Send.OkAsync(departments, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem("Failed to retrieve departments: " + ex.Message));
+        }
     }
 }
 
@@ -44,37 +54,54 @@ public sealed class GetDepartmentByIdEndpoint(AmsaDbContext db) : Endpoint<GetDe
 
     public override async Task HandleAsync(GetDepartmentByIdRequest req, CancellationToken ct)
     {
-        // Get department basic info
-        var department = await db.Departments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.DepartmentId == req.Id, ct);
-
-        if (department == null)
+        try
         {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
-
-        // Get level information for this department
-        var levels = await db.LevelDepartments
-            .Where(ld => ld.DepartmentId == req.Id)
-            .Include(ld => ld.Level)
-            .Include(ld => ld.MemberLevelDepartments)
-            .AsNoTracking()
-            .Select(d => new DepartmentLevelDto
+            if (req.Id <= 0)
             {
-                LevelDepartmentId = d.LevelDepartmentId,
-                LevelType = d.Level.LevelType,
-                MemberCount = d.MemberLevelDepartments.Count()
-            })
-            .ToListAsync(ct);
-        var response = new DepartmentDetailResponse
-        {
-            DepartmentId = department.DepartmentId,
-            DepartmentName = department.DepartmentName,
-            Levels = levels
-        };
+                await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
+                return;
+            }
 
-        await Send.OkAsync(response, ct);
+            // Get department basic info
+            var department = await db.Departments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.DepartmentId == req.Id, ct);
+
+            if (department == null)
+            {
+                await Send.NotFoundAsync(ct);
+                return;
+            }
+
+            // Get level information for this department
+            var levels = await db.LevelDepartments
+                .Where(ld => ld.DepartmentId == req.Id)
+                .Include(ld => ld.Level)
+                .Include(ld => ld.MemberLevelDepartments)
+                .AsNoTracking()
+                .Select(d => new DepartmentLevelDto
+                {
+                    LevelDepartmentId = d.LevelDepartmentId,
+                    LevelType = d.Level.LevelType,
+                    MemberCount = d.MemberLevelDepartments.Count()
+                })
+                .ToListAsync(ct);
+            var response = new DepartmentDetailResponse
+            {
+                DepartmentId = department.DepartmentId,
+                DepartmentName = department.DepartmentName,
+                Levels = levels
+            };
+
+            await Send.OkAsync(response, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem($"Failed to retrieve department with ID {req.Id}: {ex.Message}"));
+        }
     }
 }
