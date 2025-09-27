@@ -17,20 +17,30 @@ public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyReques
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-
-        var units = await db.Units
-            .AsNoTracking()
-            .Select(u => new UnitSummaryDto
-            {
-                UnitId = u.UnitId,
-                UnitName = u.UnitName,
-                StateId = u.StateId,
-                StateName = u.State.StateName,
-                NationalName = u.State.National.NationalName,
-                MemberCount = u.Members.Count()
-            })
-            .ToListAsync(ct);
-        await Send.OkAsync(units, ct);
+        try
+        {
+            var units = await db.Units
+                .AsNoTracking()
+                .Select(u => new UnitSummaryDto
+                {
+                    UnitId = u.UnitId,
+                    UnitName = u.UnitName,
+                    StateId = u.StateId,
+                    StateName = u.State.StateName,
+                    NationalName = u.State.National.NationalName,
+                    MemberCount = u.Members.Count()
+                })
+                .ToListAsync(ct);
+            await Send.OkAsync(units, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem("Failed to retrieve units: " + ex.Message));
+        }
     }
 }
 
@@ -46,69 +56,85 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
 
     public override async Task HandleAsync(GetUnitByIdRequest req, CancellationToken ct)
     {
-        var query = db.Units
-            .AsNoTracking()
-            .Include(u => u.State)
-                .ThenInclude(s => s.National)
-            .Include(u => u.Members)
-            .Where(u => u.UnitId == req.Id)
-            .Select(u => new UnitDetailDto
-            {
-                UnitId = u.UnitId,
-                UnitName = u.UnitName,
-                StateId = u.State.StateId,
-                StateName = u.State.StateName,
-                NationalId = u.State.National.NationalId,
-                NationalName = u.State.National.NationalName,
-                MemberCount = u.Members.Count()
-            });
-        var unit = await query.FirstOrDefaultAsync(ct);
-
-
-        if (unit == null)
+        try
         {
-            await Send.NotFoundAsync(ct);
-            return;
+            if (req.Id <= 0)
+            {
+                await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
+                return;
+            }
+
+            var query = db.Units
+                .AsNoTracking()
+                .Include(u => u.State)
+                    .ThenInclude(s => s.National)
+                .Include(u => u.Members)
+                .Where(u => u.UnitId == req.Id)
+                .Select(u => new UnitDetailDto
+                {
+                    UnitId = u.UnitId,
+                    UnitName = u.UnitName,
+                    StateId = u.State.StateId,
+                    StateName = u.State.StateName,
+                    NationalId = u.State.National.NationalId,
+                    NationalName = u.State.National.NationalName,
+                    MemberCount = u.Members.Count()
+                });
+            var unit = await query.FirstOrDefaultAsync(ct);
+
+            if (unit == null)
+            {
+                await Send.NotFoundAsync(ct);
+                return;
+            }
+
+            // Get members for this unit
+            var members = await db.Members
+                .AsNoTracking()
+                .Where(m => m.UnitId == req.Id)
+                .Select(m => new UnitMemberDto
+                {
+                    MemberId = m.MemberId,
+                    FirstName = m.FirstName,
+                    LastName = m.LastName,
+                    Email = m.Email,
+                    Phone = m.Phone,
+                    Mkanid = m.Mkanid
+                })
+                .OrderBy(m => m.FirstName).ThenBy(m => m.LastName)
+                .ToListAsync(ct);
+
+            // Get EXCO roles for this unit
+            var excoQuery = db.MemberLevelDepartments
+                .AsNoTracking()
+                .Where(mld => mld.LevelDepartment.Level.UnitId == req.Id)
+                .Select(mld => new UnitExcoDto
+                {
+                    FirstName = mld.Member.FirstName,
+                    LastName = mld.Member.LastName,
+                    Mkanid = mld.Member.Mkanid,
+                    DepartmentName = mld.LevelDepartment.Department.DepartmentName,
+                    LevelType = mld.LevelDepartment.Level.LevelType
+                });
+
+            var excoMembers = await excoQuery.ToListAsync(ct);
+            var response = new UnitDetailResponse
+            {
+                Unit = unit,
+                Members = members,
+                ExcoRoles = excoMembers
+            };
+
+            await Send.OkAsync(response, ct);
         }
-
-        // Get members for this unit
-        var members = await db.Members
-            .AsNoTracking()
-            .Where(m => m.UnitId == req.Id)
-            .Select(m => new UnitMemberDto
-            {
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                Email = m.Email,
-                Phone = m.Phone,
-                Mkanid = m.Mkanid
-            })
-            .OrderBy(m => m.FirstName).ThenBy(m => m.LastName)
-            .ToListAsync(ct);
-
-        // Get EXCO roles for this unit
-        var excoQuery = db.MemberLevelDepartments
-            .AsNoTracking()
-            .Where(mld => mld.LevelDepartment.Level.UnitId == req.Id)
-            .Select(mld => new UnitExcoDto
-            {
-                FirstName = mld.Member.FirstName,
-                LastName = mld.Member.LastName,
-                Mkanid = mld.Member.Mkanid,
-                DepartmentName = mld.LevelDepartment.Department.DepartmentName,
-                LevelType = mld.LevelDepartment.Level.LevelType
-            });
-
-        var excoMembers = await excoQuery.ToListAsync(ct);
-        var response = new UnitDetailResponse
+        catch (OperationCanceledException)
         {
-            Unit = unit,
-            Members = members,
-            ExcoRoles = excoMembers
-        };
-
-        await Send.OkAsync(response, ct);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem($"Failed to retrieve unit with ID {req.Id}: {ex.Message}"));
+        }
     }
 }
 
@@ -124,22 +150,49 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
 
     public override async Task HandleAsync(GetUnitsByStateRequest req, CancellationToken ct)
     {
-
-        var query = db.Units
-            .AsNoTracking()
-            .Where(u => u.StateId == req.StateId)
-            .Select(u => new UnitStateDto
+        try
+        {
+            if (req.StateId <= 0)
             {
-                UnitId = u.UnitId,
-                UnitName = u.UnitName,
-                MemberCount = u.Members.Count(),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.UnitId == u.UnitId)
-            })
-            .OrderBy(u => u.UnitName);      
-        var units = await query.ToListAsync(ct);
+                await Send.ResultAsync(Results.BadRequest("Invalid state ID. ID must be greater than 0."));
+                return;
+            }
 
-        await Send.OkAsync(units, ct);
+            // First verify the state exists
+            var stateExists = await db.States
+                .AsNoTracking()
+                .AnyAsync(s => s.StateId == req.StateId, ct);
+
+            if (!stateExists)
+            {
+                await Send.NotFoundAsync(ct);
+                return;
+            }
+
+            var query = db.Units
+                .AsNoTracking()
+                .Where(u => u.StateId == req.StateId)
+                .Select(u => new UnitStateDto
+                {
+                    UnitId = u.UnitId,
+                    UnitName = u.UnitName,
+                    MemberCount = u.Members.Count(),
+                    ExcoCount = db.MemberLevelDepartments
+                                  .Count(mld => mld.LevelDepartment.Level.UnitId == u.UnitId)
+                })
+                .OrderBy(u => u.UnitName);      
+            var units = await query.ToListAsync(ct);
+
+            await Send.OkAsync(units, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem($"Failed to retrieve units for state {req.StateId}: {ex.Message}"));
+        }
     }
 }
 
@@ -155,22 +208,33 @@ public sealed class GetAllStatesEndpoint(AmsaDbContext db) : Endpoint<EmptyReque
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var query = db.States
-            .AsNoTracking()
-            .Select(s => new StateSummaryDto
-            {
-                StateId = s.StateId,
-                StateName = s.StateName,
-                NationalName = s.National.NationalName,
-                UnitCount = s.Units.Count(),
-                MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
-            })
-            .OrderBy(s => s.StateId); 
-        var states = await query.ToListAsync(ct);
+        try
+        {
+            var query = db.States
+                .AsNoTracking()
+                .Select(s => new StateSummaryDto
+                {
+                    StateId = s.StateId,
+                    StateName = s.StateName,
+                    NationalName = s.National.NationalName,
+                    UnitCount = s.Units.Count(),
+                    MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
+                    ExcoCount = db.MemberLevelDepartments
+                                  .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+                })
+                .OrderBy(s => s.StateId); 
+            var states = await query.ToListAsync(ct);
 
-        await Send.OkAsync(states, ct);
+            await Send.OkAsync(states, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem("Failed to retrieve states: " + ex.Message));
+        }
     }
 }
 
@@ -186,28 +250,45 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
 
     public override async Task HandleAsync(GetStateByIdRequest req, CancellationToken ct)
     {
-        var query = db.States
-            .AsNoTracking()
-            .Where(s => s.StateId == req.Id)
-            .Select(s => new StateSummaryDto
-            {
-                StateId = s.StateId,
-                StateName = s.StateName,
-                NationalName = s.National.NationalName,
-                UnitCount = s.Units.Count(),
-                MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
-            });
-
-        var state = await query.FirstOrDefaultAsync();
-        if (state == null)
+        try
         {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
+            if (req.Id <= 0)
+            {
+                await Send.ResultAsync(Results.BadRequest("Invalid state ID. ID must be greater than 0."));
+                return;
+            }
 
-        await Send.OkAsync(state, ct);
+            var query = db.States
+                .AsNoTracking()
+                .Where(s => s.StateId == req.Id)
+                .Select(s => new StateSummaryDto
+                {
+                    StateId = s.StateId,
+                    StateName = s.StateName,
+                    NationalName = s.National.NationalName,
+                    UnitCount = s.Units.Count(),
+                    MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
+                    ExcoCount = db.MemberLevelDepartments
+                                  .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+                });
+
+            var state = await query.FirstOrDefaultAsync(ct);
+            if (state == null)
+            {
+                await Send.NotFoundAsync(ct);
+                return;
+            }
+
+            await Send.OkAsync(state, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem($"Failed to retrieve state with ID {req.Id}: {ex.Message}"));
+        }
     }
 }
 
@@ -223,21 +304,32 @@ public sealed class GetAllNationalsEndpoint(AmsaDbContext db) : Endpoint<EmptyRe
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var query = db.Nationals
-            .AsNoTracking()
-            .Select(n => new NationalSummaryDto
-            {
-                NationalId = n.NationalId,
-                NationalName = n.NationalName,
-                StateCount = n.States.Count(),
-                UnitCount = n.States.SelectMany(s => s.Units).Count(),
-                MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.NationalId == n.NationalId)
-            });
-        var nationals = await query.ToListAsync(ct);
+        try
+        {
+            var query = db.Nationals
+                .AsNoTracking()
+                .Select(n => new NationalSummaryDto
+                {
+                    NationalId = n.NationalId,
+                    NationalName = n.NationalName,
+                    StateCount = n.States.Count(),
+                    UnitCount = n.States.SelectMany(s => s.Units).Count(),
+                    MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId),
+                    ExcoCount = db.MemberLevelDepartments
+                                  .Count(mld => mld.LevelDepartment.Level.NationalId == n.NationalId)
+                });
+            var nationals = await query.ToListAsync(ct);
 
-        await Send.OkAsync(nationals, ct);
+            await Send.OkAsync(nationals, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem("Failed to retrieve nationals: " + ex.Message));
+        }
     }
 }
 
@@ -253,25 +345,42 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
 
     public override async Task HandleAsync(GetNationalByIdRequest req, CancellationToken ct)
     {
-        var query = db.Nationals
-            .AsNoTracking()
-            .Where(n => n.NationalId == req.Id)
-            .Select(n => new NationalDetailDto
-            {
-                NationalId = n.NationalId,
-                NationalName = n.NationalName,
-                StateCount = n.States.Count(),
-                UnitCount = n.States.SelectMany(s => s.Units).Count(),
-                MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId)
-            });
-
-        var nationalDetail = await query.FirstOrDefaultAsync(ct);
-        if (nationalDetail == null)
+        try
         {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
+            if (req.Id <= 0)
+            {
+                await Send.ResultAsync(Results.BadRequest("Invalid national ID. ID must be greater than 0."));
+                return;
+            }
 
-        await Send.OkAsync(nationalDetail, ct);
+            var query = db.Nationals
+                .AsNoTracking()
+                .Where(n => n.NationalId == req.Id)
+                .Select(n => new NationalDetailDto
+                {
+                    NationalId = n.NationalId,
+                    NationalName = n.NationalName,
+                    StateCount = n.States.Count(),
+                    UnitCount = n.States.SelectMany(s => s.Units).Count(),
+                    MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId)
+                });
+
+            var nationalDetail = await query.FirstOrDefaultAsync(ct);
+            if (nationalDetail == null)
+            {
+                await Send.NotFoundAsync(ct);
+                return;
+            }
+
+            await Send.OkAsync(nationalDetail, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await Send.ResultAsync(Results.Problem($"Failed to retrieve national with ID {req.Id}: {ex.Message}"));
+        }
     }
 }
