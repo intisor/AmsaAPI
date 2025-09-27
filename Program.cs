@@ -1,6 +1,5 @@
 using AmsaAPI.Data;
 using AmsaAPI.Endpoints;
-using AmsaAPI.Services;
 using FastEndpoints;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -10,9 +9,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.Services.AddDbContext<AmsaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Add application services
-builder.Services.AddScoped<MemberService>();
 
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
