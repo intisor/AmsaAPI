@@ -1,13 +1,14 @@
+using AmsaAPI.Common;
 using AmsaAPI.Data;
 using AmsaAPI.DTOs;
-using AmsaAPI.Extensions;
+using AmsaAPI.Services;
 using FastEndpoints;
 using Microsoft.EntityFrameworkCore;
 
 namespace AmsaAPI.FastEndpoints;
 
 // Get All Members Endpoint
-public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, List<MemberDetailResponse>>
+public sealed class GetAllMembersEndpoint(MemberService memberService) : Endpoint<EmptyRequest, List<MemberDetailResponse>>
 {
     public override void Configure()
     {
@@ -18,26 +19,34 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var membersWithAllData = await db.Members
-            .Include(m => m.Unit.State.National)
-            .Include(m => m.MemberLevelDepartments)
-                .ThenInclude(mld => mld.LevelDepartment.Department)
-            .Include(m => m.MemberLevelDepartments)                 // Need separate include for Level
-                .ThenInclude(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var response = membersWithAllData.Select(member =>
-        {
-            return member.ToDetailResponseWithRoles(member.MemberLevelDepartments.ToList());
-        }).ToList();
-
-        await Send.OkAsync(response, ct);
+        var result = await memberService.GetAllMembersAsync(ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
+            {
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    case ErrorType.Conflict:
+                        await Send.ResultAsync(Results.Conflict(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
 
 // Get Member By ID Endpoint
-public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMemberByIdRequest, MemberDetailResponse>
+public sealed class GetMemberByIdEndpoint(MemberService memberService) : Endpoint<GetMemberByIdRequest, MemberDetailResponse>
 {
     public override void Configure()
     {
@@ -48,38 +57,31 @@ public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMember
 
     public override async Task HandleAsync(GetMemberByIdRequest req, CancellationToken ct)
     {
-        // Input validation using Results pattern
-        if (req.Id <= 0)
-        {
-            await Send.ResultAsync(Results.BadRequest("Invalid member ID. ID must be greater than 0."));
-            return;
-        }
-
-        var member = await db.Members
-            .Include(m => m.Unit.State.National)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.MemberId == req.Id, ct);
-
-        if (member == null)
-        {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
-
-        var rolesData = await db.MemberLevelDepartments
-            .Where(mld => mld.MemberId == req.Id)
-            .Include(mld => mld.LevelDepartment.Department)
-            .Include(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var response = member.ToDetailResponseWithRoles(rolesData);
-        await Send.OkAsync(response, ct);
+        var result = await memberService.GetMemberByIdAsync(req.Id, ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
+            {
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
 
 // Get Member By MKAN ID Endpoint
-public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMemberByMkanIdRequest, MemberDetailResponse>
+public sealed class GetMemberByMkanIdEndpoint(MemberService memberService) : Endpoint<GetMemberByMkanIdRequest, MemberDetailResponse>
 {
     public override void Configure()
     {
@@ -90,38 +92,31 @@ public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMe
 
     public override async Task HandleAsync(GetMemberByMkanIdRequest req, CancellationToken ct)
     {
-        // Input validation using Results pattern
-        if (req.MkanId <= 0)
-        {
-            await Send.ResultAsync(Results.BadRequest("Invalid MKAN ID. ID must be greater than 0."));
-            return;
-        }
-
-        var member = await db.Members
-            .Include(m => m.Unit.State.National)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Mkanid == req.MkanId, ct);
-
-        if (member == null)
-        {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
-
-        var rolesData = await db.MemberLevelDepartments
-            .Where(mld => mld.MemberId == member.MemberId)
-            .Include(mld => mld.LevelDepartment.Department)
-            .Include(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var response = member.ToDetailResponseWithRoles(rolesData);
-        await Send.OkAsync(response, ct);
+        var result = await memberService.GetMemberByMkanIdAsync(req.MkanId, ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
+            {
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
 
 // Get Members By Unit Endpoint
-public sealed class GetMembersByUnitEndpoint(AmsaDbContext db) : Endpoint<GetMembersByUnitRequest, List<MemberSummaryResponse>>
+public sealed class GetMembersByUnitEndpoint(MemberService memberService) : Endpoint<GetMembersByUnitRequest, List<MemberSummaryResponse>>
 {
     public override void Configure()
     {
@@ -132,38 +127,31 @@ public sealed class GetMembersByUnitEndpoint(AmsaDbContext db) : Endpoint<GetMem
 
     public override async Task HandleAsync(GetMembersByUnitRequest req, CancellationToken ct)
     {
-        // Input validation using Results pattern
-        if (req.UnitId <= 0)
-        {
-            await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
-            return;
-        }
-
-        var members = await db.Members
-            .Where(m => m.UnitId == req.UnitId)
-            .Select(m => new MemberSummaryResponse
+        var result = await memberService.GetMembersByUnitAsync(req.UnitId, ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
             {
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                Email = m.Email,
-                Phone = m.Phone,
-                Mkanid = m.Mkanid
-            })
-            .ToListAsync(ct);
-
-        if (members.Count == 0)
-        {
-            await Send.NotFoundAsync(ct);
-            return;
-        }
-
-        await Send.OkAsync(members, ct);
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
 
 // Get Members By Department Endpoint
-public sealed class GetMembersByDepartmentEndpoint(AmsaDbContext db) : Endpoint<GetMembersByDepartmentRequest, List<MemberSummaryResponse>>
+public sealed class GetMembersByDepartmentEndpoint(MemberService memberService) : Endpoint<GetMembersByDepartmentRequest, List<MemberSummaryResponse>>
 {
     public override void Configure()
     {
@@ -174,33 +162,31 @@ public sealed class GetMembersByDepartmentEndpoint(AmsaDbContext db) : Endpoint<
 
     public override async Task HandleAsync(GetMembersByDepartmentRequest req, CancellationToken ct)
     {
-        // Input validation using Results pattern
-        if (req.DepartmentId <= 0)
-        {
-            await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
-            return;
-        }
-
-        var members = await db.Members
-            .Where(m => m.MemberLevelDepartments.Any(mld =>
-                mld.LevelDepartment.DepartmentId == req.DepartmentId))
-            .Select(m => new MemberSummaryResponse
+        var result = await memberService.GetMembersByDepartmentAsync(req.DepartmentId, ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
             {
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                Email = m.Email,
-                Phone = m.Phone,
-                Mkanid = m.Mkanid
-            })
-            .ToListAsync(ct);
-
-        await Send.OkAsync(members, ct);
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
 
 // Search Members By Name Endpoint
-public sealed class SearchMembersByNameEndpoint(AmsaDbContext db) : Endpoint<SearchMembersByNameRequest, List<MemberSummaryResponse>>
+public sealed class SearchMembersByNameEndpoint(MemberService memberService) : Endpoint<SearchMembersByNameRequest, List<MemberSummaryResponse>>
 {
     public override void Configure()
     {
@@ -211,26 +197,25 @@ public sealed class SearchMembersByNameEndpoint(AmsaDbContext db) : Endpoint<Sea
 
     public override async Task HandleAsync(SearchMembersByNameRequest req, CancellationToken ct)
     {
-        // Input validation using Results pattern
-        if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Length < 2)
-        {
-            await Send.ResultAsync(Results.BadRequest("Search name must be at least 2 characters long."));
-            return;
-        }
-
-        var members = await db.Members
-            .Where(m => m.FirstName.Contains(req.Name) || m.LastName.Contains(req.Name))
-            .Select(m => new MemberSummaryResponse
+        var result = await memberService.SearchMembersByNameAsync(req.Name, ct);
+        
+        await result.Match(
+            onSuccess: async value => await Send.OkAsync(value, ct),
+            onFailure: async (errorType, message) =>
             {
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                Email = m.Email,
-                Phone = m.Phone,
-                Mkanid = m.Mkanid
-            })
-            .ToListAsync(ct);
-
-        await Send.OkAsync(members, ct);
+                switch (errorType)
+                {
+                    case ErrorType.NotFound:
+                        await Send.NotFoundAsync(ct);
+                        break;
+                    case ErrorType.Validation:
+                    case ErrorType.BadRequest:
+                        await Send.ResultAsync(Results.BadRequest(message));
+                        break;
+                    default:
+                        await Send.ResultAsync(Results.Problem(message));
+                        break;
+                }
+            });
     }
 }
