@@ -240,6 +240,26 @@ public class HierarchyDto
     public string? UnitName { get; set; }
     public int MemberCount { get; set; }
 }
+// Hierarchy Node DTOs
+public record HierarchyNationalNodeDto(
+    int NationalId,
+    string NationalName,
+    int TotalMembers,
+    IReadOnlyList<HierarchyStateNodeDto> States
+);
+
+public record HierarchyStateNodeDto(
+    int StateId,
+    string StateName,
+    int TotalMembers,
+    IReadOnlyList<HierarchyUnitNodeDto> Units
+);
+
+public record HierarchyUnitNodeDto(
+    int UnitId,
+    string UnitName,
+    int MemberCount
+);
 
 // Request DTOs
 public class GetMemberByIdRequest
