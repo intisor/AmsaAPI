@@ -23,6 +23,7 @@ This index catalogs all Architecture Decision Records. It is manually maintained
 | 015 | CSV Import/Export Strategy | Accepted | 2025-09-27 | Secure CSV handling with CsvHelper and validation | Operations |
 | 016 | Security Review - Raw SQL Usage | Accepted | 2025-09-27 | Comprehensive review of raw SQL for injection risks | Security |
 | 017 | Data Validation Security Strategy | Accepted | 2025-09-27 | DataAnnotations and manual validation for secure inputs | Security |
+| 018 | FastEndpoints Optimization with Raw SQL and Result Pattern | Accepted | 2025-09-28 | Raw SQL performance optimization and Result pattern standardization | Performance |
 | 000 | Example Standard ADR | Accepted | 2025-09-27 | Example of a standard architectural decision | Architecture |
 | 000 | Example Performance ADR | Accepted | 2025-09-27 | Example of a performance-related decision with benchmarks | Performance |
 
