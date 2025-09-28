@@ -1,3 +1,4 @@
+using AmsaAPI.Common;
 using AmsaAPI.Data;
 using AmsaAPI.DTOs;
 using FastEndpoints;
