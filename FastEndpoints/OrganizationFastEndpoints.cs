@@ -17,7 +17,6 @@ public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyReques
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-
         var units = await db.Units
             .AsNoTracking()
             .Select(u => new UnitSummaryDto
@@ -46,6 +45,13 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
 
     public override async Task HandleAsync(GetUnitByIdRequest req, CancellationToken ct)
     {
+        // Input validation using Results pattern
+        if (req.Id <= 0)
+        {
+            await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
+            return;
+        }
+
         var query = db.Units
             .AsNoTracking()
             .Include(u => u.State)
@@ -63,7 +69,6 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
                 MemberCount = u.Members.Count()
             });
         var unit = await query.FirstOrDefaultAsync(ct);
-
 
         if (unit == null)
         {
@@ -124,6 +129,12 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
 
     public override async Task HandleAsync(GetUnitsByStateRequest req, CancellationToken ct)
     {
+        // Input validation using Results pattern
+        if (req.StateId <= 0)
+        {
+            await Send.ResultAsync(Results.BadRequest("Invalid state ID. ID must be greater than 0."));
+            return;
+        }
 
         var query = db.Units
             .AsNoTracking()
@@ -186,6 +197,13 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
 
     public override async Task HandleAsync(GetStateByIdRequest req, CancellationToken ct)
     {
+        // Input validation using Results pattern
+        if (req.Id <= 0)
+        {
+            await Send.ResultAsync(Results.BadRequest("Invalid state ID. ID must be greater than 0."));
+            return;
+        }
+
         var query = db.States
             .AsNoTracking()
             .Where(s => s.StateId == req.Id)
@@ -200,7 +218,7 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
                               .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
             });
 
-        var state = await query.FirstOrDefaultAsync();
+        var state = await query.FirstOrDefaultAsync(ct);
         if (state == null)
         {
             await Send.NotFoundAsync(ct);
@@ -253,6 +271,13 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
 
     public override async Task HandleAsync(GetNationalByIdRequest req, CancellationToken ct)
     {
+        // Input validation using Results pattern
+        if (req.Id <= 0)
+        {
+            await Send.ResultAsync(Results.BadRequest("Invalid national ID. ID must be greater than 0."));
+            return;
+        }
+
         var query = db.Nationals
             .AsNoTracking()
             .Where(n => n.NationalId == req.Id)

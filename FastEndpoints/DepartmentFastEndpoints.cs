@@ -17,7 +17,6 @@ public sealed class GetAllDepartmentsEndpoint(AmsaDbContext db) : Endpoint<Empty
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-   
         var departments = await db.Departments
             .Select(d => new DepartmentSummaryDto
             {
@@ -44,6 +43,13 @@ public sealed class GetDepartmentByIdEndpoint(AmsaDbContext db) : Endpoint<GetDe
 
     public override async Task HandleAsync(GetDepartmentByIdRequest req, CancellationToken ct)
     {
+        // Input validation using Results pattern
+        if (req.Id <= 0)
+        {
+            await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
+            return;
+        }
+
         // Get department basic info
         var department = await db.Departments
             .AsNoTracking()
