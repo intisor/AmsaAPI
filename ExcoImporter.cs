@@ -2,6 +2,7 @@
 using CsvHelper;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using System.Linq;
 
 namespace AmsaAPI
 {
@@ -31,8 +32,19 @@ namespace AmsaAPI
             var unmatchedRecords = new List<string>();
             var memberLevelDepartmentsToAdd = new List<MemberLevelDepartment>();
 
-            using var reader = new StreamReader(csvFilePath);
+            using var reader = new StreamReader(csvFilePath, System.Text.Encoding.UTF8);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            
+            // Read and validate headers first
+            csv.Read();
+            csv.ReadHeader();
+            var headers = csv.HeaderRecord;
+            
+            if (headers == null || !headers.SequenceEqual(new[] { "NAME", "UNIT", "DEPARTMENT" }))
+            {
+                throw new InvalidOperationException($"Invalid CSV headers. Expected: NAME,UNIT,DEPARTMENT. Found: {string.Join(",", headers ?? new string[0])}");
+            }
+            
             var records = csv.GetRecords<ExcoRecord>().ToList();
 
             var allMembers = await _dbContext.Members.ToListAsync();
@@ -44,7 +56,15 @@ namespace AmsaAPI
 
             foreach (var record in records)
             {
-                var nameParts = record.NAME.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                // Handle null or empty names more robustly
+                var name = record.NAME?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    unmatchedRecords.Add($"(Empty Name) - {record.UNIT} - {record.DEPARTMENT} (Invalid name format)");
+                    continue;
+                }
+
+                var nameParts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 string firstName, lastName;
                 
                 if (nameParts.Length >= 2)
@@ -59,16 +79,19 @@ namespace AmsaAPI
                 }
                 else
                 {
-                    unmatchedRecords.Add($"{record.NAME} - {record.UNIT} - {record.DEPARTMENT} (Invalid name format)");
+                    unmatchedRecords.Add($"{name} - {record.UNIT} - {record.DEPARTMENT} (Invalid name format)");
                     continue;
                 }
 
                 var member = allMembers.FirstOrDefault(m =>
-                    string.Equals(m.FirstName.Trim(), firstName.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(m.LastName.Trim(), lastName.Trim(), StringComparison.OrdinalIgnoreCase));
+                    string.Equals(m.FirstName?.Trim() ?? "", firstName.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(m.LastName?.Trim() ?? "", lastName.Trim(), StringComparison.OrdinalIgnoreCase));
 
-                var department = allDepartments.FirstOrDefault(d =>
-                    string.Equals(d.DepartmentName.Trim(), record.DEPARTMENT.Trim(), StringComparison.OrdinalIgnoreCase));
+                var departmentName = record.DEPARTMENT?.Trim() ?? "";
+                var department = !string.IsNullOrWhiteSpace(departmentName) 
+                    ? allDepartments.FirstOrDefault(d =>
+                        string.Equals(d.DepartmentName?.Trim() ?? "", departmentName, StringComparison.OrdinalIgnoreCase))
+                    : null;
 
                 var levelDepartment = department != null
                     ? allLevelDepartments.FirstOrDefault(ld => ld.DepartmentId == department.DepartmentId)
