@@ -7,6 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AmsaAPI.FastEndpoints;
 
+// Private record DTOs for raw SQL projections - minimal and functional
+file record MemberDetailRawDto(int MemberId, string FirstName, string LastName, string? Email, string? Phone, int Mkanid, int UnitId, string UnitName, int StateId, string StateName, int NationalId, string NationalName, string? DepartmentName, string? LevelType);
+file record MemberSummaryRawDto(int MemberId, string FirstName, string LastName, string? Email, string? Phone, int Mkanid);
+
 // Get All Members Endpoint
 public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, List<MemberDetailResponse>>
 {
@@ -19,18 +23,65 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var membersWithAllData = await db.Members
-            .Include(m => m.Unit.State.National)
-            .Include(m => m.MemberLevelDepartments)
-                .ThenInclude(mld => mld.LevelDepartment.Department)
-            .Include(m => m.MemberLevelDepartments)
-                .ThenInclude(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
+        // Single flattened raw SQL query to get all member data
+        var membersQuery = """
+            SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
+                   u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
+                   d.DepartmentName, l.LevelType
+            FROM Members m
+            INNER JOIN Units u ON m.UnitId = u.UnitId
+            INNER JOIN States s ON u.StateId = s.StateId  
+            INNER JOIN National n ON s.NationalId = n.NationalId
+            LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+            LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+            LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
+            LEFT JOIN Levels l ON ld.LevelId = l.LevelId
+            ORDER BY m.MemberId
+            """;
+        
+        var membersRaw = await db.Database.SqlQueryRaw<MemberDetailRawDto>(membersQuery)
             .ToListAsync(ct);
 
-        var response = membersWithAllData.Select(member =>
-            member.ToDetailResponseWithRoles(member.MemberLevelDepartments.ToList())
-        ).ToList();
+        // Group results by MemberId and build response structure
+        var memberGroups = membersRaw.GroupBy(m => m.MemberId);
+        var response = new List<MemberDetailResponse>();
+
+        foreach (var group in memberGroups)
+        {
+            var firstMember = group.First();
+            var roles = group.Where(m => m.DepartmentName != null)
+                .Select(m => new DepartmentAtLevelDto
+                {
+                    DepartmentName = m.DepartmentName!,
+                    LevelType = m.LevelType!
+                }).ToList();
+
+            response.Add(new MemberDetailResponse
+            {
+                MemberId = firstMember.MemberId,
+                FirstName = firstMember.FirstName,
+                LastName = firstMember.LastName,
+                Email = firstMember.Email,
+                Phone = firstMember.Phone,
+                Mkanid = firstMember.Mkanid,
+                Unit = new UnitHierarchyDto
+                {
+                    UnitId = firstMember.UnitId,
+                    UnitName = firstMember.UnitName,
+                    State = new StateHierarchyDto
+                    {
+                        StateId = firstMember.StateId,
+                        StateName = firstMember.StateName,
+                        National = new NationalDto
+                        {
+                            NationalId = firstMember.NationalId,
+                            NationalName = firstMember.NationalName
+                        }
+                    }
+                },
+                Roles = roles
+            });
+        }
 
         await Send.OkAsync(response, ct);
     }
@@ -56,26 +107,66 @@ public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMember
             return;
         }
 
-        // Use default FastEndpoints methods for business logic
-        var member = await db.Members
-            .Include(m => m.Unit.State.National)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.MemberId == req.Id, ct);
+        // Single comprehensive raw SQL query for member with roles
+        var memberQuery = """
+            SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
+                   u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
+                   d.DepartmentName, l.LevelType
+            FROM Members m
+            INNER JOIN Units u ON m.UnitId = u.UnitId
+            INNER JOIN States s ON u.StateId = s.StateId  
+            INNER JOIN National n ON s.NationalId = n.NationalId
+            LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+            LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+            LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
+            LEFT JOIN Levels l ON ld.LevelId = l.LevelId
+            WHERE m.MemberId = {0}
+            ORDER BY m.MemberId
+            """;
+        
+        var memberRaw = await db.Database.SqlQueryRaw<MemberDetailRawDto>(memberQuery, req.Id)
+            .ToListAsync(ct);
 
-        if (member == null)
+        if (!memberRaw.Any())
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
-        var rolesData = await db.MemberLevelDepartments
-            .Where(mld => mld.MemberId == req.Id)
-            .Include(mld => mld.LevelDepartment.Department)
-            .Include(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
+        var firstMember = memberRaw.First();
+        var roles = memberRaw.Where(m => m.DepartmentName != null)
+            .Select(m => new DepartmentAtLevelDto
+            {
+                DepartmentName = m.DepartmentName!,
+                LevelType = m.LevelType!
+            }).ToList();
 
-        var response = member.ToDetailResponseWithRoles(rolesData);
+        var response = new MemberDetailResponse
+        {
+            MemberId = firstMember.MemberId,
+            FirstName = firstMember.FirstName,
+            LastName = firstMember.LastName,
+            Email = firstMember.Email,
+            Phone = firstMember.Phone,
+            Mkanid = firstMember.Mkanid,
+            Unit = new UnitHierarchyDto
+            {
+                UnitId = firstMember.UnitId,
+                UnitName = firstMember.UnitName,
+                State = new StateHierarchyDto
+                {
+                    StateId = firstMember.StateId,
+                    StateName = firstMember.StateName,
+                    National = new NationalDto
+                    {
+                        NationalId = firstMember.NationalId,
+                        NationalName = firstMember.NationalName
+                    }
+                }
+            },
+            Roles = roles
+        };
+
         await Send.OkAsync(response, ct);
     }
 
@@ -100,33 +191,74 @@ public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMe
 
     public override async Task HandleAsync(GetMemberByMkanIdRequest req, CancellationToken ct)
     {
-        // Simple validation with Result pattern
-        if (req.MkanId <= 0)
+        // Use Result pattern for input validation
+        var validationResult = MemberValidationMethods.ValidateMkanIdRequest(req);
+        if (!validationResult.IsSuccess)
         {
-            await Send.ResultAsync(Results.BadRequest("Invalid MKAN ID. ID must be greater than 0."));
+            await Send.ResultAsync(Results.BadRequest(validationResult.ErrorMessage));
             return;
         }
 
-        // Default FastEndpoints methods for business logic
-        var member = await db.Members
-            .Include(m => m.Unit.State.National)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Mkanid == req.MkanId, ct);
+        // Single comprehensive raw SQL query for member by MKANID
+        var memberQuery = """
+            SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
+                   u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
+                   d.DepartmentName, l.LevelType
+            FROM Members m
+            INNER JOIN Units u ON m.UnitId = u.UnitId
+            INNER JOIN States s ON u.StateId = s.StateId  
+            INNER JOIN National n ON s.NationalId = n.NationalId
+            LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+            LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+            LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
+            LEFT JOIN Levels l ON ld.LevelId = l.LevelId
+            WHERE m.Mkanid = {0}
+            ORDER BY m.MemberId
+            """;
+        
+        var memberRaw = await db.Database.SqlQueryRaw<MemberDetailRawDto>(memberQuery, req.MkanId)
+            .ToListAsync(ct);
 
-        if (member == null)
+        if (!memberRaw.Any())
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
-        var rolesData = await db.MemberLevelDepartments
-            .Where(mld => mld.MemberId == member.MemberId)
-            .Include(mld => mld.LevelDepartment.Department)
-            .Include(mld => mld.LevelDepartment.Level)
-            .AsNoTracking()
-            .ToListAsync(ct);
+        var firstMember = memberRaw.First();
+        var roles = memberRaw.Where(m => m.DepartmentName != null)
+            .Select(m => new DepartmentAtLevelDto
+            {
+                DepartmentName = m.DepartmentName!,
+                LevelType = m.LevelType!
+            }).ToList();
 
-        var response = member.ToDetailResponseWithRoles(rolesData);
+        var response = new MemberDetailResponse
+        {
+            MemberId = firstMember.MemberId,
+            FirstName = firstMember.FirstName,
+            LastName = firstMember.LastName,
+            Email = firstMember.Email,
+            Phone = firstMember.Phone,
+            Mkanid = firstMember.Mkanid,
+            Unit = new UnitHierarchyDto
+            {
+                UnitId = firstMember.UnitId,
+                UnitName = firstMember.UnitName,
+                State = new StateHierarchyDto
+                {
+                    StateId = firstMember.StateId,
+                    StateName = firstMember.StateName,
+                    National = new NationalDto
+                    {
+                        NationalId = firstMember.NationalId,
+                        NationalName = firstMember.NationalName
+                    }
+                }
+            },
+            Roles = roles
+        };
+
         await Send.OkAsync(response, ct);
     }
 }
@@ -143,10 +275,11 @@ public sealed class GetMembersByUnitEndpoint(AmsaDbContext db) : Endpoint<GetMem
 
     public override async Task HandleAsync(GetMembersByUnitRequest req, CancellationToken ct)
     {
-        // Simple validation
-        if (req.UnitId <= 0)
+        // Use Result pattern for input validation
+        var validationResult = MemberValidationMethods.ValidateUnitIdRequest(req);
+        if (!validationResult.IsSuccess)
         {
-            await Send.ResultAsync(Results.BadRequest("Invalid unit ID. ID must be greater than 0."));
+            await Send.ResultAsync(Results.BadRequest(validationResult.ErrorMessage));
             return;
         }
 
@@ -180,26 +313,36 @@ public sealed class GetMembersByDepartmentEndpoint(AmsaDbContext db) : Endpoint<
 
     public override async Task HandleAsync(GetMembersByDepartmentRequest req, CancellationToken ct)
     {
-        // Simple validation
-        if (req.DepartmentId <= 0)
+        // Use Result pattern for input validation
+        var validationResult = MemberValidationMethods.ValidateDepartmentIdRequest(req);
+        if (!validationResult.IsSuccess)
         {
-            await Send.ResultAsync(Results.BadRequest("Invalid department ID. ID must be greater than 0."));
+            await Send.ResultAsync(Results.BadRequest(validationResult.ErrorMessage));
             return;
         }
 
-        var members = await db.Members
-            .Where(m => m.MemberLevelDepartments.Any(mld =>
-                mld.LevelDepartment.DepartmentId == req.DepartmentId))
-            .Select(m => new MemberSummaryResponse
-            {
-                MemberId = m.MemberId,
-                FirstName = m.FirstName,
-                LastName = m.LastName,
-                Email = m.Email,
-                Phone = m.Phone,
-                Mkanid = m.Mkanid
-            })
+        // Direct JOIN-based raw SQL query to eliminate Any() operation
+        var membersQuery = """
+            SELECT DISTINCT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid
+            FROM Members m
+            INNER JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+            INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+            WHERE ld.DepartmentId = {0}
+            ORDER BY m.FirstName, m.LastName
+            """;
+        
+        var membersRaw = await db.Database.SqlQueryRaw<MemberSummaryRawDto>(membersQuery, req.DepartmentId)
             .ToListAsync(ct);
+
+        var members = membersRaw.Select(m => new MemberSummaryResponse
+        {
+            MemberId = m.MemberId,
+            FirstName = m.FirstName,
+            LastName = m.LastName,
+            Email = m.Email,
+            Phone = m.Phone,
+            Mkanid = m.Mkanid
+        }).ToList();
 
         await Send.OkAsync(members, ct);
     }
@@ -251,6 +394,34 @@ public sealed class SearchMembersByNameEndpoint(AmsaDbContext db) : Endpoint<Sea
         
         if (req.Name.Length > 50)
             return Result.Validation<bool>("Search name cannot exceed 50 characters.");
+        
+        return Result.Success(true);
+    }
+}
+
+// Static validation class for Member endpoints
+public static class MemberValidationMethods
+{
+    public static Result<bool> ValidateMkanIdRequest(GetMemberByMkanIdRequest req)
+    {
+        if (req.MkanId <= 0)
+            return Result.Validation<bool>("Invalid MKAN ID. ID must be greater than 0.");
+        
+        return Result.Success(true);
+    }
+
+    public static Result<bool> ValidateUnitIdRequest(GetMembersByUnitRequest req)
+    {
+        if (req.UnitId <= 0)
+            return Result.Validation<bool>("Invalid unit ID. ID must be greater than 0.");
+        
+        return Result.Success(true);
+    }
+
+    public static Result<bool> ValidateDepartmentIdRequest(GetMembersByDepartmentRequest req)
+    {
+        if (req.DepartmentId <= 0)
+            return Result.Validation<bool>("Invalid department ID. ID must be greater than 0.");
         
         return Result.Success(true);
     }
