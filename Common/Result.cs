@@ -55,3 +55,16 @@ public static class Result
     public static Result<T> Validation<T>(string message) => Failure<T>(ErrorType.Validation, message);
     public static Result<T> Conflict<T>(string message) => Failure<T>(ErrorType.Conflict, message);
 }
+//public readonly record struct Result<T>(bool IsSuccess, T? Value, ErrorType ErrorType, string ErrorMessage)
+//{
+//    // Ensure default(Result<T>) is a valid failure with empty message (no nulls).
+//    public Result() : this(false, default, default, string.Empty) { }
+
+//    public static Result<T> Success(T value) => new(true, value, default, string.Empty);
+//    public static Result<T> Failure(ErrorType errorType, string errorMessage) => new(false, default, errorType, errorMessage);
+
+//    public TResult Match<TResult>(
+//        Func<T, TResult> onSuccess,
+//        Func<ErrorType, string, TResult> onFailure)
+//        => IsSuccess ? onSuccess(Value!) : onFailure(ErrorType, ErrorMessage);
+//}
