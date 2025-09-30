@@ -1,5 +1,7 @@
 ﻿using AmsaAPI.Common;
 using AmsaAPI.Models;
+using CsvHelper;
+using System.Globalization;
 using System.Text;
 
 namespace AmsaAPI.Services
@@ -7,7 +9,8 @@ namespace AmsaAPI.Services
     public class CsvValidationHelper
     {
         private const long MaxFileSizeBytes = 10L * 1024 * 1024;
-        private static readonly string[] ExpectedHeaders = {"NAME", "UNIT", "DEPARTMENT","EMAIL","PHONE","MKANID"}
+        private static readonly string[] ExpectedHeaders = {"NAME", "UNIT", "DEPARTMENT","EMAIL","PHONE","MKANID"};
+        
         public async Task<Result<CsvValidationResult>> ValidateFileStructure(Stream stream)
         {
             var csvResult = new CsvValidationResult();
@@ -51,45 +54,64 @@ namespace AmsaAPI.Services
             }
 
             stream.Position = 0;
-            using var reader = new StreamReader(stream,encoding,leaveOpen:true);
-            var headerLine = await reader.ReadLineAsync();
-            if (string.IsNullOrWhiteSpace(headerLine))
+            try
             {
-                var headerError = new ImportError
+                using var reader = new StreamReader(stream, encoding, leaveOpen: true);
+                using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+                await csv.ReadAsync();
+                csv.ReadHeader();
+
+                if (csv.HeaderRecord == null || csv.HeaderRecord.Length is 0)
+                {
+                    var headerError = new ImportError
+                    {
+                        ErrorType = ImportErrorType.HeaderValidationFailed,
+                        DetailedMessage = "Header row is missing or empty",
+                        RowNumber = 1,
+                        Severity = ImportSeverity.Error
+                    };
+                    csvResult.Errors.Add(headerError);
+                    csvResult.IsValid = false;
+                    return Result.Failure<CsvValidationResult>(ErrorType.Validation, headerError.DetailedMessage);
+                }
+
+                var actualHeaders = csv.HeaderRecord.Select(h => h.Trim()).Where(h => !string.IsNullOrEmpty(h)).ToArray();
+                var missingHeaders = ExpectedHeaders.Except(actualHeaders, StringComparer.OrdinalIgnoreCase).ToList();
+                if (missingHeaders.Count != 0)
+                {
+                    var missingError = new ImportError
+                    {
+                        ErrorType = ImportErrorType.HeaderValidationFailed,
+                        DetailedMessage = "Missing required headers: " + string.Join(", ", missingHeaders),
+                        Severity = ImportSeverity.Error
+                    };
+                    csvResult.Errors.Add(missingError);
+                    csvResult.IsValid = false;
+                    return Result.Failure<CsvValidationResult>(ErrorType.Validation, missingError.DetailedMessage);
+                }
+
+                csvResult.IsValid = true;
+                return Result.Success(csvResult);
+            }
+            catch (Exception ex)
+            {
+                var parseError = new ImportError
                 {
                     ErrorType = ImportErrorType.HeaderValidationFailed,
-                    DetailedMessage = "Header row is missing or empty",
-                    RowNumber = 1,
+                    DetailedMessage = $"Failed to parse CSV header: {ex.Message}",
                     Severity = ImportSeverity.Error
                 };
-                csvResult.Errors.Add(headerError);
+                csvResult.Errors.Add(parseError);
                 csvResult.IsValid = false;
-                return Result.Failure<CsvValidationResult>(ErrorType.Validation, headerError.DetailedMessage);
+                return Result.Failure<CsvValidationResult>(ErrorType.Validation, parseError.DetailedMessage);
             }
-
-            var actualHeaders = 
         }
 
-        private string[] ParseCsvLine(string line)
+        public async Task<Result<List<MemberImportRecord>>> ParseWithValidation(Stream stream)
         {
-            if (string.IsNullOrEmpty(line))
-                return [];
-
-            var fields = new List<string>();
-            var currentField = new StringBuilder();
-            bool inQuotes = false;
-
-            for(int i = 0; i < line.Length;i++)
-            {
-                char c = line[i];
-
-                if (c == '"')
-                {
-                    
-                }
-            }
+            var validationResult
         }
-
         private Encoding DetectEncoding(Stream stream)
         {
             if (stream.Length < 3)
@@ -104,3 +126,4 @@ namespace AmsaAPI.Services
         }
     }
 }
+    
