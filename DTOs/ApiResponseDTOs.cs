@@ -315,10 +315,30 @@ public class GetDepartmentByIdRequest
 // Import Response DTOs
 public class ImportResponse
 {
-    public string Message { get; set; } = string.Empty;
-    public List<string> UnmatchedRecords { get; set; } = new();
-    public int UnmatchedCount { get; set; }
-    public bool Success => UnmatchedCount == 0;
+    public int TotalRecords { get; set; }
+    public int SuccessfulImports { get; set; }
+    public int FailedImports { get; set; }
+    public long ProcessingTimeMs { get; set; }
+    public List<AmsaAPI.Models.ImportError> Errors { get; set; } = new();
+    public bool Success => FailedImports == 0;
+    public string Message => Success 
+        ? "Import completed successfully." 
+        : $"Import completed with {FailedImports} failed records.";
+}
+
+public class CsvPreviewResponse
+{
+    public bool IsValid { get; set; }
+    public int TotalRows { get; set; }
+    public int ValidRows { get; set; }
+    public List<AmsaAPI.Models.ImportError> Errors { get; set; } = new();
+    public string DetectedEncoding { get; set; } = "UTF-8";
+}
+
+public class ImportOptionsRequest
+{
+    public bool ValidateOnly { get; set; } = false;
+    public bool SkipDuplicates { get; set; } = false;
 }
 
 // Statistics DTOs for specific endpoints

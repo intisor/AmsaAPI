@@ -72,6 +72,9 @@ namespace AmsaAPI.Models
 
         public string Department { get; set; } = string.Empty;
 
+        [MaxLength(50, ErrorMessage = "Level type too long.")]
+        public string? Level { get; set; }
+
         [EmailAddress(ErrorMessage = "Invalid email format.")]
         [MaxLength(254, ErrorMessage = "Email address too long.")]
         public string? Email { get; set; }

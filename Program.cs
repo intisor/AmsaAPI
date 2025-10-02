@@ -10,6 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AmsaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Register import services
+builder.Services.AddScoped<AmsaAPI.Services.CsvValidationHelper>();
+builder.Services.AddScoped<AmsaAPI.Services.MemberImporter>();
+
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
