@@ -64,11 +64,17 @@ public static class ImportEndpoints
 
             var response = new ImportResponse
             {
-                Message = unmatchedRecords.Any()
-                    ? "Import completed with unmatched records."
-                    : "Import completed successfully.",
-                UnmatchedRecords = unmatchedRecords,
-                UnmatchedCount = unmatchedRecords.Count
+                TotalRecords = unmatchedRecords.Count,
+                SuccessfulImports = 0,
+                FailedImports = unmatchedRecords.Count,
+                ProcessingTimeMs = 0,
+                Errors = unmatchedRecords.Select((record, index) => new ImportError
+                {
+                    ErrorType = ImportErrorType.InvalidCsvStructure,
+                    DetailedMessage = record,
+                    RowNumber = index + 1,
+                    Severity = ImportSeverity.Warning
+                }).ToList()
             };
 
             return Results.Ok(response);
@@ -115,11 +121,17 @@ public static class ImportEndpoints
 
                 var response = new ImportResponse
                 {
-                    Message = unmatchedRecords.Any()
-                        ? "Import completed with unmatched records."
-                        : "Import completed successfully.",
-                    UnmatchedRecords = unmatchedRecords,
-                    UnmatchedCount = unmatchedRecords.Count
+                    TotalRecords = unmatchedRecords.Count,
+                    SuccessfulImports = 0,
+                    FailedImports = unmatchedRecords.Count,
+                    ProcessingTimeMs = 0,
+                    Errors = unmatchedRecords.Select((record, index) => new ImportError
+                    {
+                        ErrorType = ImportErrorType.InvalidCsvStructure,
+                        DetailedMessage = record,
+                        RowNumber = index + 1,
+                        Severity = ImportSeverity.Warning
+                    }).ToList()
                 };
 
                 return Results.Ok(response);
