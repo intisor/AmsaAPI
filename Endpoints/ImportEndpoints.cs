@@ -11,7 +11,9 @@ public static class ImportEndpoints
 {
     public static void MapImportEndpoints(this WebApplication app)
     {
-        var importGroup = app.MapGroup("/api/import").WithTags("Import");
+        var importGroup = app.MapGroup("/api/import")
+            .WithTags("Import")
+            .DisableAntiforgery(); // Disable antiforgery for all import endpoints
 
         // Test CSV file exists
         importGroup.MapGet("/test", TestCsvFileExists);

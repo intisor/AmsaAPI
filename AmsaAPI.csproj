@@ -21,4 +21,8 @@
     <PackageReference Include="Microsoft.VisualStudio.DiagnosticsHub.BenchmarkDotNetDiagnosers" Version="18.0.36421.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Pages\" />
+  </ItemGroup>
+
 </Project>
