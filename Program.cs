@@ -14,6 +14,9 @@ builder.Services.AddDbContext<AmsaDbContext>(options =>
 builder.Services.AddScoped<AmsaAPI.Services.CsvValidationHelper>();
 builder.Services.AddScoped<AmsaAPI.Services.MemberImporter>();
 
+// Add Razor Pages
+builder.Services.AddRazorPages();
+
 // Configure JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -29,11 +32,16 @@ var app = builder.Build();
 // Configure pipeline
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseRouting();
+
+// Map Razor Pages
+app.MapRazorPages();
+
 app.UseFastEndpoints();
 
 // Welcome message with benchmark info!
 app.MapGet("/", () => "Welcome to the AMSA Nigeria API! " +
-    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html | ?? Benchmark: /benchmark");
+    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html | Import: /Import | ?? Benchmark: /benchmark");
 
 // ?? THE SURPRISE! Add a benchmark endpoint
 app.MapGet("/benchmark", () => 
