@@ -1,4 +1,5 @@
 ﻿using AmsaAPI.Data;
+using CsvHelper.Configuration.Attributes;
 using System.ComponentModel.DataAnnotations;
 
 namespace AmsaAPI.Models
@@ -64,26 +65,33 @@ namespace AmsaAPI.Models
     {
         [Required(ErrorMessage = "Name is required for member identification.")]
         [MaxLength(500, ErrorMessage = "Name too long - max 500 characters for international names.")]
+        [Name("NAME")]
         public string Name { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Unit is required for organizational context.")]
         [MaxLength(200, ErrorMessage = "Unit name too long.")]
+        [Name("UNIT")]
         public string Unit { get; set; } = string.Empty;
 
+        [Name("DEPARTMENT")]
         public string Department { get; set; } = string.Empty;
 
         [MaxLength(50, ErrorMessage = "Level type too long.")]
+        [Name("LEVEL")]
         public string? Level { get; set; }
 
         [EmailAddress(ErrorMessage = "Invalid email format.")]
         [MaxLength(254, ErrorMessage = "Email address too long.")]
+        [Name("EMAIL")]
         public string? Email { get; set; }
 
         [Phone(ErrorMessage = "Invalid phone number format.")]
         [MaxLength(20, ErrorMessage = "Phone number too long.")]
+        [Name("PHONE")]
         public string? Phone { get; set; }
 
         [Required(ErrorMessage = "MKAN ID is required.")]
+        [Name("MKANID")]
         public int Mkanid { get; set; }
     }
 }

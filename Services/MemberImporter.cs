@@ -1,6 +1,7 @@
 using AmsaAPI.Data;
 using AmsaAPI.Models;
 using CsvHelper;
+using CsvHelper.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Globalization;
@@ -51,7 +52,11 @@ namespace AmsaAPI.Services
             var stopwatch = Stopwatch.StartNew();
 
             using var reader = new StreamReader(csvFilePath);
-            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                PrepareHeaderForMatch = args => args.Header.ToLower(),
+            };
+            using var csv = new CsvReader(reader, config);
             var records = csv.GetRecords<MemberImportRecord>().ToList();
 
             var allMembers = await _dbContext.Members
@@ -63,6 +68,19 @@ namespace AmsaAPI.Services
             var allLevels = await _dbContext.Levels.ToListAsync();
             var allLevelDepartments = await _dbContext.LevelDepartments.ToListAsync();
             var existingAssignments = await _dbContext.MemberLevelDepartments.ToListAsync();
+
+            var membersByMkanid = allMembers.ToDictionary(m => m.Mkanid);
+            var membersByName = allMembers
+                .GroupBy(m => (m.FirstName.Trim().ToLowerInvariant(), m.LastName.Trim().ToLowerInvariant()))
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // Pre-compute unit level lookups for O(1) access
+            var levelsByUnitId = allLevels
+                .Where(l => l.UnitId.HasValue)
+                .ToDictionary(l => l.UnitId!.Value);
+            
+            // Add unitsByUnitId dictionary for state lookup fallback
+            var unitsByUnitId = allUnits.ToDictionary(u => u.UnitId);
 
             int rowNumber = 1;
             foreach (var record in records)
@@ -88,10 +106,11 @@ namespace AmsaAPI.Services
                 var lastName = nameParts.Length == 1 ? string.Empty : nameParts.Last();
 
                 // Find or create member inline
-                var member = allMembers.FirstOrDefault(m => m.Mkanid == record.Mkanid)
-                    ?? allMembers.FirstOrDefault(m =>
-                        string.Equals(m.FirstName.Trim(), firstName.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(m.LastName.Trim(), lastName.Trim(), StringComparison.OrdinalIgnoreCase));
+                var member = membersByMkanid.TryGetValue(record.Mkanid, out var mkanidMember)
+                    ? mkanidMember
+                    : membersByName.TryGetValue((firstName.Trim().ToLowerInvariant(), lastName.Trim().ToLowerInvariant()), out var nameMember)
+                        ? nameMember
+                        : null;
 
                 bool memberWasCreated = false;
                 if (member == null)
@@ -167,8 +186,10 @@ namespace AmsaAPI.Services
                 var level = levelType switch
                 {
                     "national" => allLevels.FirstOrDefault(l => l.LevelId == 1),
-                    "state" => allLevels.FirstOrDefault(l => l.StateId == member.Unit.StateId && l.UnitId == null),
-                    "unit" => allLevels.FirstOrDefault(l => l.UnitId == member.UnitId),
+                    "state" => (member.Unit?.StateId ?? unitsByUnitId.GetValueOrDefault(member.UnitId)?.StateId) is int stateId
+                                ? allLevels.FirstOrDefault(l => l.StateId == stateId && l.UnitId == null)
+                                : null,
+                    "unit" => levelsByUnitId.TryGetValue(member.UnitId, out var unitLevel) ? unitLevel : null,
                     _ => null
                 };
 

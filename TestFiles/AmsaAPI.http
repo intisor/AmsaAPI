@@ -1,0 +1,168 @@
+﻿@AmsaAPI_HostAddress = https://localhost:7278
+
+### ====================
+### CSV IMPORT (File Uploads)
+### ====================
+
+### Member Import - Preview (Validation Only)
+# @name MemberPreview
+POST {{AmsaAPI_HostAddress}}/api/import/members/preview
+Content-Type: multipart/form-data; boundary=MyBoundary123
+
+--MyBoundary123
+Content-Disposition: form-data; name="file"; filename="members.csv"
+Content-Type: text/csv
+
+NAME,UNIT,DEPARTMENT,LEVEL,EMAIL,PHONE,MKANID
+Fatimah Kolawole,OSPOHAS,Health,Unit,fatimah.kolawole20001@cleanamsa.com,08186150977,20001
+Ahmad Tukur,FPN,Tajneed,National,ahmad.tukur20002@cleanamsa.com,08127274214,20002
+Asiya Adeleke,AKUNGBA,Tabligh,State,asiya.adeleke20003@cleanamsa.com,08166219448,20003
+Kamal Olaitan,LASUSTECH,Vice President,State,kamal.olaitan20004@cleanamsa.com,08187104127,20004
+Kamal Shittu,Lead City,,,,08197170305,20005
+Halimah Saula,TASUED,Health,Unit,halimah.saula20006@cleanamsa.com,08169619472,20006
+Safiya Azeez,TASUED,Assistant Welfare,National,safiya.azeez20007@cleanamsa.com,08189713965,20007
+Faisal Saula,MAPOLY,Assistant Finance,State,faisal.saula20008@cleanamsa.com,08174900658,20008
+Umar Yusuf,COE Osiele,Publicity,State,umar.yusuf20009@cleanamsa.com,08129348150,20009
+Bilal Bello,UNILAG,President,State,bilal.bello20010@cleanamsa.com,08117769250,20010
+Luqman Sani,TPI,Publicity,State,luqman.sani20011@cleanamsa.com,08168215321,20011
+Aisha Sani,FUTMINNA,Publicity,State,aisha.sani20012@cleanamsa.com,08114977974,20012
+Ali Bello,SPED,Assistant General,National,ali.bello20013@cleanamsa.com,08129246200,20013
+Sadiq Bello,MAPOLY,Assistant Welfare,State,sadiq.bello20015@cleanamsa.com,08137526866,20015
+Luqman Ganiyu,Kwara Poly,Finance,Unit,luqman.ganiyu20016@cleanamsa.com,08194565460,20016
+Farida Dauda,FUTA,Assistant Publicity,National,farida.dauda20017@cleanamsa.com,08126931712,20017
+Halimah Adebayo,COE Osiele,Finance,State,halimah.adebayo20018@cleanamsa.com,08177500419,20018
+Bilal Lawal,UNILORIN,President,Unit,bilal.lawal20019@cleanamsa.com,08198002302,20019
+Aisha Abdullahi,MAPOLY,Taleem,State,aisha.abdullahi20020@cleanamsa.com,08199005225,20020
+Maryam Lawal,Ila,Assistant Tajneed,National,maryam.lawal20021@cleanamsa.com,08123375564,20021
+Muhammad Kolawole,Kwara Poly,Vice President,Unit,muhammad.kolawole20022@cleanamsa.com,08117753155,20022
+Farida Saula,Fountain,Assistant General,Unit,farida.saula20023@cleanamsa.com,08125863317,20023
+Halimah Azeez,UNIABUJA,,,,08175939798,20024
+Hafsah Adebayo,FCC Ibadan,Assistant Health,Unit,hafsah.adebayo20025@cleanamsa.com,08141216979,20025
+Imran Kolawole,Kwara Poly,,,,08161357745,20026
+--MyBoundary123--
+###
+
+### Member Import - Upload (Actual Database Import)
+# @name MemberUpload
+POST {{AmsaAPI_HostAddress}}/api/import/members/upload
+Content-Type: multipart/form-data; boundary=MyBoundary123
+
+--MyBoundary123
+Content-Disposition: form-data; name="file"; filename="members.csv"
+Content-Type: text/csv
+
+NAME,UNIT,DEPARTMENT,LEVEL,EMAIL,PHONE,MKANID
+Fatimah Kolawole,OSPOHAS,Health,Unit,fatimah.kolawole20001@cleanamsa.com,08186150977,20001
+Ahmad Tukur,FPN,Tajneed,National,ahmad.tukur20002@cleanamsa.com,08127274214,20002
+Asiya Adeleke,AKUNGBA,Tabligh,State,asiya.adeleke20003@cleanamsa.com,08166219448,20003
+Kamal Olaitan,LASUSTECH,Vice President,State,kamal.olaitan20004@cleanamsa.com,08187104127,20004
+Kamal Shittu,Lead City,,,,08197170305,20005
+Halimah Saula,TASUED,Health,Unit,halimah.saula20006@cleanamsa.com,08169619472,20006
+Safiya Azeez,TASUED,Assistant Welfare,National,safiya.azeez20007@cleanamsa.com,08189713965,20007
+Faisal Saula,MAPOLY,Assistant Finance,State,faisal.saula20008@cleanamsa.com,08174900658,20008
+Umar Yusuf,COE Osiele,Publicity,State,umar.yusuf20009@cleanamsa.com,08129348150,20009
+Bilal Bello,UNILAG,President,State,bilal.bello20010@cleanamsa.com,08117769250,20010
+Luqman Sani,TPI,Publicity,State,luqman.sani20011@cleanamsa.com,08168215321,20011
+Aisha Sani,FUTMINNA,Publicity,State,aisha.sani20012@cleanamsa.com,08114977974,20012
+Ali Bello,SPED,Assistant General,National,ali.bello20013@cleanamsa.com,08129246200,20013
+Zainab Ibrahim,UI,Assistant General,National,zainab.ibrahim20014@cleanamsa.com,08112014920,20014
+Sadiq Bello,MAPOLY,Assistant Welfare,State,sadiq.bello20015@cleanamsa.com,08137526866,20015
+Luqman Ganiyu,Kwara Poly,Finance,Unit,luqman.ganiyu20016@cleanamsa.com,08194565460,20016
+Farida Dauda,FUTA,Assistant Publicity,National,farida.dauda20017@cleanamsa.com,08126931712,20017
+Halimah Adebayo,COE Osiele,Finance,State,halimah.adebayo20018@cleanamsa.com,08177500419,20018
+Bilal Lawal,UNILORIN,President,Unit,bilal.lawal20019@cleanamsa.com,08198002302,20019
+Aisha Abdullahi,MAPOLY,Taleem,State,aisha.abdullahi20020@cleanamsa.com,08199005225,20020
+Maryam Lawal,Ila,Assistant Tajneed,National,maryam.lawal20021@cleanamsa.com,08123375564,20021
+Muhammad Kolawole,Kwara Poly,Vice President,Unit,muhammad.kolawole20022@cleanamsa.com,08117753155,20022
+Farida Saula,Fountain,Assistant General,Unit,farida.saula20023@cleanamsa.com,08125863317,20023
+Halimah Azeez,UNIABUJA,,,,08175939798,20024
+Hafsah Adebayo,FCC Ibadan,Assistant Health,Unit,hafsah.adebayo20025@cleanamsa.com,08141216979,20025
+Imran Kolawole,Kwara Poly,,,,08161357745,20026
+Nusaibah Bello,UNILESA,Secondary School,State,nusaibah.bello20027@cleanamsa.com,08112542010,20027
+Asiya Abdullahi,UNILESA,,,,08192245256,20028
+Sumayyah Olatunde,UNILESA,Assistant Sport,Unit,sumayyah.olatunde20029@cleanamsa.com,08117340518,20029
+Luqman Saula,UNIBEN,,,,08135016335,20030
+Abdulrahman Usman,FCC Ibadan,,,,08110794761,20031
+Kamal Kolawole,FEDPOLY Nasarawa,Assistant Publicity,Unit,kamal.kolawole20032@cleanamsa.com,08160127271,20032
+Khadijah Olatunde,UNIABUJA,Assistant Taleem,State,khadijah.olatunde20033@cleanamsa.com,08145092418,20033
+Yusuf Usman,FUOYE,Assistant General,State,yusuf.usman20034@cleanamsa.com,08143444212,20034
+Sumayyah Olaitan,TPI,Assistant Tajneed,National,sumayyah.olaitan20035@cleanamsa.com,08131559058,20035
+Junaid Musa,Westland/Crestfield,Assistant Sport,State,junaid.musa20036@cleanamsa.com,08162400530,20036
+Idris Azeez,UNICAL,Vice President,National,idris.azeez20037@cleanamsa.com,08138941020,20037
+Maryam Bello,Moor Plantation,Tajneed,Unit,maryam.bello20038@cleanamsa.com,08132067840,20038
+Aisha Sani,FPI,Assistant Finance,Unit,aisha.sani20039@cleanamsa.com,08137480401,20039
+Amira Ibrahim,FUTMINNA,Assistant Secondary School,Unit,amira.ibrahim20040@cleanamsa.com,08164490346,20040
+Yusuf Tukur,UNIABUJA,Assistant Taleem,National,yusuf.tukur20041@cleanamsa.com,08174060733,20041
+Abdulrahman Aliyu,OSPOHAS,,,,08192949090,20042
+Faisal Ganiyu,AFUED,,,,08135664089,20043
+Fatimah Lawal,LASU,Assistant Welfare,State,fatimah.lawal20044@cleanamsa.com,08126873433,20044
+Halimah Olaitan,EKSU,Assistant Taleem,State,halimah.olaitan20045@cleanamsa.com,08166316735,20045
+Amira Olaitan,AFUED,,,,08164204771,20046
+Fatimah Saula,LASU,Health,State,fatimah.saula20047@cleanamsa.com,08176746360,20047
+Junaid Usman,UNILESA,Welfare,State,junaid.usman20048@cleanamsa.com,08167401475,20048
+Safiya Tijani,UNIBEN,Assistant General,Unit,safiya.tijani20049@cleanamsa.com,08196049937,20049
+Faisal Abdullahi,FUOYE,Assistant Tabligh,State,faisal.abdullahi20050@cleanamsa.com,08196598861,20050
+Maryam Lawal,UI,,,,08151234974,20051
+Fatimah Tukur,FEDPOLY Ede,General,National,fatimah.tukur20052@cleanamsa.com,08155924934,20052
+Faisal Adebayo,TASUED,Assistant Tabligh,Unit,faisal.adebayo20053@cleanamsa.com,08152612954,20053
+Khadijah Kolawole,BUK,Assistant Tabligh,National,khadijah.kolawole20054@cleanamsa.com,08134235269,20054
+Idris Tijani,FPN,Taleem,Unit,idris.tijani20055@cleanamsa.com,08140577356,20055
+Junaid Abdullahi,FUNAAB,,,,08119314885,20056
+Luqman Alabi,NOUN,,,,08161062723,20057
+Khadijah Olatunde,Ila,,,,08148839118,20058
+Zainab Bello,Lapai,General,State,zainab.bello20059@cleanamsa.com,08151428159,20059
+Ahmad Ganiyu,UDUS,Assistant Sport,Unit,ahmad.ganiyu20060@cleanamsa.com,08143906211,20060
+Sadiq Kolawole,OYSCATECH,Health,Unit,sadiq.kolawole20061@cleanamsa.com,08175515902,20061
+Ali Saula,UNILESA,General,Unit,ali.saula20062@cleanamsa.com,08157754812,20062
+Imran Dauda,UNIABUJA,,,,08115982449,20063
+Sumayyah Adeleke,MAPOLY,Assistant Finance,State,sumayyah.adeleke20064@cleanamsa.com,08110237814,20064
+Aisha Hassan,FPN,Assistant Welfare,Unit,aisha.hassan20065@cleanamsa.com,08161208431,20065
+Junaid Bello,UDUS,,,,08148605372,20066
+Khadijah Alabi,Lead City,Assistant Tajneed,State,khadijah.alabi20067@cleanamsa.com,08111895185,20067
+Fatimah Shittu,AAUA,Assistant General,National,fatimah.shittu20068@cleanamsa.com,08113725199,20068
+Safiya Ganiyu,BUK,Assistant Finance,State,safiya.ganiyu20069@cleanamsa.com,08162036334,20069
+Abdulrahman Musa,Daarul-Amaan,,,,08192968496,20070
+Khadijah Usman,FEDPOLY Ede,,,,08193159273,20071
+Adnan Jimoh,NOUN,Assistant Taleem,Unit,adnan.jimoh20072@cleanamsa.com,08144832749,20072
+Farida Yusuf,Moor Plantation,President,State,farida.yusuf20073@cleanamsa.com,08163864599,20073
+Idris Shittu,TASUED,Vice President,Unit,idris.shittu20074@cleanamsa.com,08174575952,20074
+Aisha Usman,FUTA,,,,08121776410,20075
+Luqman Tijani,Westland/Crestfield,Tabligh,Unit,luqman.tijani20076@cleanamsa.com,08178735539,20076
+Bilal Tukur,FUNAAB,Tabligh,National,bilal.tukur20077@cleanamsa.com,08167800843,20077
+Aminah Aliyu,Kaduna,President,State,aminah.aliyu20078@cleanamsa.com,08168783213,20078
+Safiya Adeleke,UNIABUJA,Sport,State,safiya.adeleke20079@cleanamsa.com,08149029401,20079
+Hafsah Aliyu,FUOYE,Assistant Health,State,hafsah.aliyu20080@cleanamsa.com,08190601946,20080
+Sadiq Lawal,UNICAL,Assistant Finance,Unit,sadiq.lawal20081@cleanamsa.com,08161382248,20081
+Bilal Tukur,Lead City,Welfare,Unit,bilal.tukur20082@cleanamsa.com,08193176029,20082
+Imran Kolawole,Lapai,Assistant Publicity,National,imran.kolawole20083@cleanamsa.com,08190428996,20083
+Muhammad Lawal,UNICAL,Secondary School,State,muhammad.lawal20084@cleanamsa.com,08133900925,20084
+Aminah Okon,FUTMINNA,Publicity,National,aminah.okon20085@cleanamsa.com,08110766660,20085
+Hafsah Aliyu,LAUTECH,Sport,Unit,hafsah.aliyu20086@cleanamsa.com,08113837228,20086
+Idris Azeez,UNIOSUN,General,State,idris.azeez20087@cleanamsa.com,08113930177,20087
+Abdulrahman Olaitan,KWASU,Assistant Health,State,abdulrahman.olaitan20088@cleanamsa.com,08120378551,20088
+Maryam Tukur,FPN,Assistant Tabligh,State,maryam.tukur20089@cleanamsa.com,08159679728,20089
+Farida Alabi,FEDPOFFA,,,,08124054091,20090
+Sadiq Ibrahim,FCC Ibadan,Secondary School,National,sadiq.ibrahim20091@cleanamsa.com,08179586723,20091
+Sumayyah Tukur,Kwara Poly,Assistant General,National,sumayyah.tukur20092@cleanamsa.com,08146505085,20092
+Sadiq Lawal,UNILORIN,Assistant General,National,sadiq.lawal20093@cleanamsa.com,08116605204,20093
+Idris Tukur,FUTMINNA,Sport,National,idris.tukur20094@cleanamsa.com,08164855451,20094
+Maryam Dauda,FEDPOLY Nasarawa,,,,08114471218,20095
+Bilal Hassan,NOUN,Assistant Sport,Unit,bilal.hassan20096@cleanamsa.com,08115885912,20096
+Ali Sani,FUTMINNA,Secondary School,National,ali.sani20097@cleanamsa.com,08190903920,20097
+Luqman Abdullahi,LASU,Vice President,Unit,luqman.abdullahi20098@cleanamsa.com,08126153217,20098
+Ahmad Dauda,Daarul-Amaan,Assistant Health,State,ahmad.dauda20099@cleanamsa.com,08110626503,20099
+Sadiq Olatunde,Daarul-Amaan,Assistant Tabligh,Unit,sadiq.olatunde20100@cleanamsa.com,08130336692,20100
+--MyBoundary123--
+###
+
+### EXCO Import - Upload CSV
+# @name ExcoUpload
+POST {{AmsaAPI_HostAddress}}/api/import/exco/upload
+Content-Type: multipart/form-data
+
+--boundary
+Content-Disposition: form-data; name="csvFile"; filename="exco.csv"
+Content-Type: text/csv
+
+< ./exco.csv
+--boundary--
