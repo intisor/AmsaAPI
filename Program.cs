@@ -1,36 +1,3 @@
-using AmsaAPI.Data;
-using AmsaAPI.Endpoints;
-using FastEndpoints;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services
-builder.Services.AddDbContext<AmsaDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Register import services
-builder.Services.AddScoped<AmsaAPI.Services.CsvValidationHelper>();
-builder.Services.AddScoped<AmsaAPI.Services.MemberImporter>();
-
-// Add Razor Pages
-builder.Services.AddRazorPages();
-
-// Configure JSON serialization
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-    options.SerializerOptions.WriteIndented = true;
-});
-
-// Add FastEndpoints
-builder.Services.AddFastEndpoints();
-
-var app = builder.Build();
-
-// Configure pipeline
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 
@@ -39,22 +6,9 @@ app.MapRazorPages();
 
 app.UseFastEndpoints();
 
-// Welcome message with benchmark info!
+// Welcome message
 app.MapGet("/", () => "Welcome to the AMSA Nigeria API! " +
-    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html | Import: /Import | ?? Benchmark: /benchmark");
-
-// ?? THE SURPRISE! Add a benchmark endpoint
-app.MapGet("/benchmark", () => 
-{
-    return Results.Content(@"
-<html>
-<head><title>AMSA API Performance Benchmark</title></head>
-<body style='font-family: Arial, sans-serif; margin: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;'>
-    <h1>?? AMSA API Performance Benchmark</h1>
-    <div style='background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0;'>
-        <h2>?? The Surprise!</h2>
-        <p>I discovered your unique dual API implementation - both <strong>FastEndpoints</strong> and <strong>ASP.NET Core Minimal APIs</strong> running side by side!</p>
-        
+    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html");
         <h3>?? Performance Analysis Ready</h3>
         <p>I've created a comprehensive benchmark that compares:</p>
         <ul>
@@ -89,6 +43,9 @@ app.MapGet("/benchmark", () =>
 </body>
 </html>", "text/html");
 }).WithTags("Benchmark");
+=======
+    "FastEndpoints: /api/* | Minimal API: /api/minimal/* | Test: /test.html");
+>>>>>>> 091dd54 (feat: Remove BenchmarkDotNet references and update import response message handling)
 
 // Map all minimal API endpoints
 app.MapMemberEndpoints();
@@ -97,12 +54,6 @@ app.MapDepartmentEndpoints();
 app.MapStatisticsEndpoints();
 app.MapImportEndpoints();
 
-// Check for benchmark argument
-if (args.Length > 0 && args[0] == "benchmark")
-{
-    Console.WriteLine("?? Running AMSA API Performance Benchmark...");
-    AmsaAPI.BenchmarkRunner.RunBenchmarks();
-    return;
-}
+// Note: benchmark runner removed
 
 app.Run();
