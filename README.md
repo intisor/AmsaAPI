@@ -699,12 +699,4 @@ This project uses Architecture Decision Records (ADRs) to document significant a
 
 **Built with ❤️ for AMSA Nigeria (Ahmadiyya Muslim Students Association)** 🇳🇬
 
-## Running Benchmarks
-
-To run performance benchmarks:
-
-1. Ensure test database is set up (LocalDB or SQL Server)
-2. Run: `dotnet run -- benchmark`
-3. View reports in `Benchmarks/reports/`
-
-The BenchmarkRunner executes all benchmarks and generates HTML reports with detailed performance metrics.
+<!-- Benchmarks removed from runtime build. See docs/adr for historical benchmark records. -->

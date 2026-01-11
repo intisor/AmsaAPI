@@ -321,9 +321,16 @@ public class ImportResponse
     public long ProcessingTimeMs { get; set; }
     public List<AmsaAPI.Models.ImportError> Errors { get; set; } = new();
     public bool Success => FailedImports == 0;
-    public string Message => Success 
-        ? "Import completed successfully." 
-        : $"Import completed with {FailedImports} failed records.";
+    // Allows endpoints to set a custom message but preserves computed default when not set.
+    private string? _message;
+    public string Message
+    {
+        get => _message ?? (Success ? "Import completed successfully." : $"Import completed with {FailedImports} failed records.");
+        set => _message = value;
+    }
+    // Additional fields used by import endpoints
+    public List<string> UnmatchedRecords { get; set; } = new();
+    public int UnmatchedCount { get; set; }
 }
 
 public class CsvPreviewResponse
