@@ -60,80 +60,58 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
             return;
         }
 
-        // Single comprehensive raw SQL query for unit details
-        var unitDetailQuery = """
-            SELECT u.UnitId, u.UnitName, u.StateId, s.StateName, s.NationalId, n.NationalName,
-                   (SELECT COUNT(*) FROM Members m WHERE m.UnitId = u.UnitId) as MemberCount
-            FROM Units u
-            INNER JOIN States s ON u.StateId = s.StateId
-            INNER JOIN Nationals n ON s.NationalId = n.NationalId
-            WHERE u.UnitId = {0}
-            """;
-        
-        var unitDetails = await db.Database.SqlQueryRaw<UnitDetailRawDto>(unitDetailQuery, req.Id)
+        // Fetch unit details using standard LINQ to avoid SqlQueryRaw bug in EF Core 10
+        var unit = await db.Units
+            .AsNoTracking()
+            .Where(u => u.UnitId == req.Id)
+            .Select(u => new UnitDetailDto
+            {
+                UnitId = u.UnitId,
+                UnitName = u.UnitName,
+                StateId = u.StateId,
+                StateName = u.State.StateName,
+                NationalId = u.State.NationalId,
+                NationalName = u.State.National.NationalName,
+                MemberCount = u.Members.Count()
+            })
             .FirstOrDefaultAsync(ct);
 
-        if (unitDetails == null)
+        if (unit == null)
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
-        // Get members for this unit with raw SQL
-        var membersQuery = """
-            SELECT MemberId, FirstName, LastName, Email, Phone, Mkanid
-            FROM Members
-            WHERE UnitId = {0}
-            ORDER BY FirstName, LastName
-            """;
-        
-        var membersRaw = await db.Database.SqlQueryRaw<UnitMemberRawDto>(membersQuery, req.Id)
+        // Get members for this unit
+        var members = await db.Members
+            .AsNoTracking()
+            .Where(m => m.UnitId == req.Id)
+            .Select(m => new UnitMemberDto
+            {
+                MemberId = m.MemberId,
+                FirstName = m.FirstName,
+                LastName = m.LastName,
+                Email = m.Email,
+                Phone = m.Phone,
+                Mkanid = m.Mkanid
+            })
+            .OrderBy(m => m.FirstName)
+            .ThenBy(m => m.LastName)
             .ToListAsync(ct);
 
-        // Get EXCO roles for this unit with raw SQL
-        var excoQuery = """
-            SELECT m.FirstName, m.LastName, m.Mkanid, d.DepartmentName, l.LevelType
-            FROM MemberLevelDepartments mld
-            INNER JOIN Members m ON mld.MemberId = m.MemberId
-            INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-            INNER JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-            INNER JOIN Levels l ON ld.LevelId = l.LevelId
-            WHERE l.UnitId = {0}
-            """;
-        
-        var excoRaw = await db.Database.SqlQueryRaw<UnitExcoRawDto>(excoQuery, req.Id)
+        // Get EXCO roles for this unit
+        var excoMembers = await db.MemberLevelDepartments
+            .AsNoTracking()
+            .Where(mld => mld.LevelDepartment.Level.UnitId == req.Id)
+            .Select(mld => new UnitExcoDto
+            {
+                FirstName = mld.Member.FirstName,
+                LastName = mld.Member.LastName,
+                Mkanid = mld.Member.Mkanid,
+                DepartmentName = mld.LevelDepartment.Department.DepartmentName,
+                LevelType = mld.LevelDepartment.Level.LevelType
+            })
             .ToListAsync(ct);
-
-        // Map raw SQL results to DTOs
-        var unit = new UnitDetailDto
-        {
-            UnitId = unitDetails.UnitId,
-            UnitName = unitDetails.UnitName,
-            StateId = unitDetails.StateId,
-            StateName = unitDetails.StateName,
-            NationalId = unitDetails.NationalId,
-            NationalName = unitDetails.NationalName,
-            MemberCount = unitDetails.MemberCount
-        };
-
-        var members = membersRaw.Select(m => new UnitMemberDto
-        {
-            MemberId = m.MemberId,
-            FirstName = m.FirstName,
-            LastName = m.LastName,
-            Email = m.Email,
-            Phone = m.Phone,
-            Mkanid = m.Mkanid
-        }).ToList();
-
-        var excoMembers = excoRaw.Select(e => new UnitExcoDto
-        {
-            FirstName = e.FirstName,
-            LastName = e.LastName,
-            Mkanid = e.Mkanid,
-            DepartmentName = e.DepartmentName,
-            LevelType = e.LevelType
-        }).ToList();
 
         var response = new UnitDetailResponse
         {
@@ -272,34 +250,20 @@ public sealed class GetAllNationalsEndpoint(AmsaDbContext db) : Endpoint<EmptyRe
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        // Single aggregated raw SQL query for all nationals with counts
-        var nationalsQuery = """
-            SELECT 
-                n.NationalId,
-                n.NationalName,
-                (SELECT COUNT(*) FROM States s WHERE s.NationalId = n.NationalId) as StateCount,
-                (SELECT COUNT(*) FROM Units u INNER JOIN States s ON u.StateId = s.StateId WHERE s.NationalId = n.NationalId) as UnitCount,
-                (SELECT COUNT(*) FROM Members m INNER JOIN Units u ON m.UnitId = u.UnitId INNER JOIN States s ON u.StateId = s.StateId WHERE s.NationalId = n.NationalId) as MemberCount,
-                (SELECT COUNT(*) FROM MemberLevelDepartments mld 
-                 INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId 
-                 INNER JOIN Levels l ON ld.LevelId = l.LevelId 
-                 WHERE l.NationalId = n.NationalId) as ExcoCount
-            FROM Nationals n
-            ORDER BY n.NationalName
-            """;
-        
-        var nationalsRaw = await db.Database.SqlQueryRaw<NationalSummaryRawDto>(nationalsQuery)
+        // Use standard LINQ instead of SqlQueryRaw to avoid EF Core 10 bug
+        var nationals = await db.Nationals
+            .AsNoTracking()
+            .Select(n => new NationalSummaryDto
+            {
+                NationalId = n.NationalId,
+                NationalName = n.NationalName,
+                StateCount = n.States.Count(),
+                UnitCount = n.States.SelectMany(s => s.Units).Count(),
+                MemberCount = n.States.SelectMany(s => s.Units).SelectMany(u => u.Members).Count(),
+                ExcoCount = db.MemberLevelDepartments.Count(mld => mld.LevelDepartment.Level.NationalId == n.NationalId)
+            })
+            .OrderBy(n => n.NationalName)
             .ToListAsync(ct);
-
-        var nationals = nationalsRaw.Select(n => new NationalSummaryDto
-        {
-            NationalId = n.NationalId,
-            NationalName = n.NationalName,
-            StateCount = n.StateCount,
-            UnitCount = n.UnitCount,
-            MemberCount = n.MemberCount,
-            ExcoCount = n.ExcoCount
-        }).ToList();
 
         await Send.OkAsync(nationals, ct);
     }
