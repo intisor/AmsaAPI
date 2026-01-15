@@ -3,7 +3,10 @@ using AmsaAPI.Data;
 using AmsaAPI.Endpoints;
 using AmsaAPI.FastEndpoints;
 using AmsaAPI.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +31,35 @@ builder.Services.AddFastEndpoints();
 builder.Services.AddScoped<CsvValidationHelper>();
 builder.Services.AddScoped<MemberImporter>();
 
+// Configure JWT Authentication
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var secretKey = builder.Configuration["Jwt:SecretKey"];
+
+if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 32)
+    throw new InvalidOperationException("JWT SecretKey must be at least 32 characters long. Check user-secrets or appsettings.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtSettings["Issuer"],
+            
+            ValidateAudience = true,
+            ValidAudiences = new[] { "ReportingApp", "EventsApp", "PaymentApp" },
+            
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
+            
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -40,6 +72,10 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+
+// Authentication & Authorization middleware (order matters!)
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Map Razor Pages
 app.MapRazorPages();

@@ -31,6 +31,8 @@ public partial class AmsaDbContext : DbContext
 
     public virtual DbSet<Unit> Units { get; set; }
 
+    public virtual DbSet<AppRegistration> AppRegistrations { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
@@ -158,6 +160,17 @@ public partial class AmsaDbContext : DbContext
                 .HasForeignKey(d => d.StateId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__Units__StateId__619B8048");
+        });
+
+        modelBuilder.Entity<AppRegistration>(entity =>
+        {
+            entity.HasKey(e => e.AppId).HasName("PK__AppRegistrations__AppId");
+
+            entity.Property(e => e.AppId).HasMaxLength(50);
+            entity.Property(e => e.AppName).HasMaxLength(100);
+            entity.Property(e => e.AppSecretHash).HasMaxLength(256);
+            entity.Property(e => e.AllowedScopes).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
 
         OnModelCreatingPartial(modelBuilder);
