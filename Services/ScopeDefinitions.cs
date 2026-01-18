@@ -1,7 +1,5 @@
 ﻿namespace AmsaAPI.Services;
 
-using AmsaAPI.Services.Scopes;
-
 public static class ScopeDefinitions
 {
     private static readonly Type[] _modules = [typeof(MemberScopesModule), typeof(OrganizationScopesModule), typeof(AnalyticsScopesModule)];
