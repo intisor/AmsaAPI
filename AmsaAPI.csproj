@@ -27,7 +27,6 @@
     <Folder Include="Endpoints\Auth\" />
     <Folder Include="http TestFiles\" />
     <Folder Include="Pages\" />
-    <Folder Include="Services\Scopes\" />
   </ItemGroup>
 
   <!-- Exclude benchmark source files from compilation so benchmark-specific code doesn't require BenchmarkDotNet packages -->
