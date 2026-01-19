@@ -24,12 +24,25 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
         if (invalidScopes.Length > 0)
             return Result.Validation<string>($"Invalid scopes: {string.Join(", ", invalidScopes)}");
 
-        var appResult = await _db.AppRegistrations
-            .FirstOrDefaultAsync(a => a.AppId == request.AppId);
+        // Resolve app by AppId or AppName
+        AppRegistration? appResult = null;
+        if (!string.IsNullOrWhiteSpace(request.AppId))
+        {
+            appResult = await _db.AppRegistrations.FirstOrDefaultAsync(a => a.AppId == request.AppId);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.AppName))
+        {
+            appResult = await _db.AppRegistrations.FirstOrDefaultAsync(a => a.AppName == request.AppName);
+        }
+        else
+        {
+            return Result.Validation<string>("AppId or AppName is required");
+        }
+
         if (appResult == null)
-            return Result.NotFound<string>($"App '{request.AppId}' not found");
+            return Result.NotFound<string>($"App '{request.AppId ?? request.AppName}' not found");
         if (!appResult.IsActive)
-            return Result.Validation<string>($"App '{request.AppId}' inactive");
+            return Result.Validation<string>($"App '{appResult.AppId}' inactive");
 
         string[] allowedScopes;
         try
@@ -38,14 +51,14 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
         }
         catch (JsonException)
         {
-            return Result.BadRequest<string>($"Invalid AllowedScopes for app '{request.AppId}'");
+            return Result.BadRequest<string>($"Invalid AllowedScopes for app '{appResult.AppId}'");
         }
 
         var grantedScopes = request.RequestedScopes
             .Intersect(allowedScopes)
             .ToArray();
         if (grantedScopes.Length == 0)
-            return Result.Validation<string>($"No allowed scopes for app '{request.AppId}'");
+            return Result.Validation<string>($"No allowed scopes for app '{appResult.AppId}'");
 
         var member = await _db.Members
             .FirstOrDefaultAsync(m => m.Mkanid == request.MkanId);
@@ -53,9 +66,10 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
             return Result.NotFound<string>($"Member {request.MkanId} not found");
 
         var roles = await LoadMemberRolesAsync(member.MemberId);
-        var claims = BuildClaimsForApp(request.AppId, member, roles, grantedScopes);
+        var appId = appResult.AppId;
+        var claims = BuildClaimsForApp(appId, member, roles, grantedScopes);
         
-        var tokenResult = CreateJwtToken(request.AppId, claims, appResult.TokenExpirationHours ?? 1);
+        var tokenResult = CreateJwtToken(appId, claims, appResult.TokenExpirationHours ?? 1);
         if (tokenResult.IsSuccess)
         {
             appResult.LastUsedAt = DateTime.UtcNow;
@@ -110,27 +124,26 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
     private Result<string> CreateJwtToken(string appId, List<Claim> claims, int expirationHours)
     {
         var jwtConfig = _configuration.GetSection("Jwt");
-        var signingKey = jwtConfig["SigningKey"];
+        // Use the same key name as Program.cs (SecretKey)
+        var secretKey = jwtConfig["SecretKey"];
         var issuer = jwtConfig["Issuer"];
-        var audience = jwtConfig["Audience"];
 
-        if (string.IsNullOrWhiteSpace(signingKey))
-            return Result.BadRequest<string>("SigningKey not configured");
+        if (string.IsNullOrWhiteSpace(secretKey))
+            return Result.BadRequest<string>("SecretKey not configured");
         if (string.IsNullOrWhiteSpace(issuer))
             return Result.BadRequest<string>("Issuer not configured");
-        if (string.IsNullOrWhiteSpace(audience))
-            return Result.BadRequest<string>("Audience not configured");
 
         try
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var descriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddHours(expirationHours),
                 Issuer = issuer,
-                Audience = audience,
+                // Audience must match one of the configured ValidAudiences in Program.cs
+                Audience = appId,
                 SigningCredentials = credentials
             };
 
@@ -140,7 +153,7 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
         }
         catch (Exception ex)
         {
-            return Result.BadRequest<string>($"Token creation failed: {ex.Message}");
+            return Result.BadRequest<string>("Token creation failed: " + ex.Message);
         }
     }
 }

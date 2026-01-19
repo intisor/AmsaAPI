@@ -1,0 +1,75 @@
+### AMSA API Authentication Testing
+### Base URL
+@baseUrl = https://localhost:7278
+@authUrl = {{baseUrl}}/api/auth
+
+###############################################
+# TEST 1: Generate Token (Anonymous Access)
+###############################################
+POST {{authUrl}}/token
+Content-Type: application/json
+
+{
+  "appId": "ReportingApp",
+  "appSecret": "test-secret-123",
+  "mkanId": 1063,
+  "requestedScopes": ["read:members", "read:statistics"]
+}
+
+### Save the token from above response, then use it below
+@token = YOUR_TOKEN_HERE
+
+###############################################
+# TEST 2: Validate Token (Requires Auth)
+###############################################
+POST {{authUrl}}/validate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+###############################################
+# TEST 3: Revoke Token (Requires Auth)
+###############################################
+POST {{authUrl}}/revoke
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+###############################################
+# TEST 4: Test with Invalid Credentials
+###############################################
+POST {{authUrl}}/token
+Content-Type: application/json
+
+{
+  "appId": "ReportingApp",
+  "appSecret": "wrong-secret",
+  "mkanId": 1063,
+  "requestedScopes": ["read:members"]
+}
+
+###############################################
+# TEST 5: Test with Missing MkanId
+###############################################
+POST {{authUrl}}/token
+Content-Type: application/json
+
+{
+  "appId": "ReportingApp",
+  "appSecret": "test-secret-123",
+  "requestedScopes": ["read:members"]
+}
+
+###############################################
+# TEST 6: Test Protected Endpoint - Get Members
+###############################################
+GET {{baseUrl}}/api/members?pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+###############################################
+# TEST 7: Test without Token (Should Fail)
+###############################################
+GET {{baseUrl}}/api/members?pageNumber=1&pageSize=10
+

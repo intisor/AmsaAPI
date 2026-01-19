@@ -5,7 +5,8 @@
 /// </summary>
 public class TokenGenerationRequest
 {
-    public required string AppId { get; set; }
+    public string? AppId { get; set; }
+    public string? AppName { get; set; }
     public required string AppSecret { get; set; }
     public int MkanId { get; set; }
     public required string[] RequestedScopes { get; set; }
