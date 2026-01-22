@@ -28,19 +28,6 @@ builder.Services.AddDbContext<AmsaDbContext>(options =>
 
 builder.Services.AddFastEndpoints();
 
-// Add Swagger for API documentation and testing
-builder.Services.SwaggerDocument(o =>
-{
-    o.DocumentSettings = s =>
-    {
-        s.Title = "AMSA Nigeria API";
-        s.Version = "v1";
-        s.Description = "API for AMSA member management, organizations, and authentication";
-    };
-    
-    // Enable JWT authentication in Swagger UI
-    o.EnableJWTBearerAuth = true;
-});
 
 // Register import services for minimal API endpoints
 builder.Services.AddScoped<CsvValidationHelper>();
@@ -66,20 +53,21 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwtSettings["Issuer"],
-            
-            ValidateAudience = true,
-            ValidAudiences = ["ReportingApp", "EventsApp", "PaymentApp"],
-            
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero,
-            
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
-        };
+		options.SaveToken = true;
+		options.TokenValidationParameters = new TokenValidationParameters
+		{
+			ValidateIssuer = true,
+			ValidIssuer = jwtSettings["Issuer"],
+
+			ValidateAudience = true,
+			ValidAudiences = ["ReportingApp", "EventsApp", "PaymentApp"],
+
+			ValidateLifetime = true,
+			ClockSkew = TimeSpan.FromMinutes(1),
+
+			ValidateIssuerSigningKey = true,
+			IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+		};
     });
 
 builder.Services.AddAuthorization();

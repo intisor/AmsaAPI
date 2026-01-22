@@ -4,7 +4,7 @@ using AmsaAPI.DTOs;
 using AmsaAPI.Data;
 using AmsaAPI.Common;
 
-namespace AmsaAPI.FastEndpoints.Auth;
+namespace AmsaAPI.FastEndpoints;
 
 /// <summary>
 /// Generate JWT token for external applications
@@ -48,7 +48,7 @@ public class GenerateTokenEndpoint : Endpoint<TokenGenerationRequest, object>
         }
 
         Response = new { token = result.Value, tokenType = "Bearer" };
-        await Send.OkAsync(ct);
+        await Send.OkAsync(Response,ct);
     }
 }
 
@@ -144,7 +144,7 @@ public class GetAppEndpoint : Endpoint<GetAppRequest, object>
             lastUsedAt = result.Value.LastUsedAt
         };
 
-        await Send.OkAsync(ct);
+        await Send.OkAsync(Response,ct);
     }
 }
 

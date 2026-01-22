@@ -24,7 +24,6 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
         if (invalidScopes.Length > 0)
             return Result.Validation<string>($"Invalid scopes: {string.Join(", ", invalidScopes)}");
 
-        // Resolve app by AppId or AppName
         AppRegistration? appResult = null;
         if (!string.IsNullOrWhiteSpace(request.AppId))
         {
@@ -124,7 +123,6 @@ public class TokenService(IConfiguration configuration, AmsaDbContext db)
     private Result<string> CreateJwtToken(string appId, List<Claim> claims, int expirationHours)
     {
         var jwtConfig = _configuration.GetSection("Jwt");
-        // Use the same key name as Program.cs (SecretKey)
         var secretKey = jwtConfig["SecretKey"];
         var issuer = jwtConfig["Issuer"];
 
