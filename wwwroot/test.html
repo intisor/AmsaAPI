@@ -15,19 +15,57 @@
     </style>
 </head>
 <body>
-    <h1>?? AMSA API Test Suite</h1>
+    <h1>AMSA API Test Suite</h1>
+    <div class="section" style="background: #e3f2fd;">
+        <div style="margin-bottom: 10px;">
+            <strong>POST /api/auth/token</strong><br>
+            <input type="text" id="token-appid" placeholder="AppId" style="width: 120px;">
+            <input type="text" id="token-secret" placeholder="AppSecret" style="width: 120px;">
+            <input type="text" id="token-scopes" placeholder="Scopes (comma)" style="width: 160px;">
+            <button onclick="callAuthToken()">Generate Token</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <strong>POST /api/auth/apps</strong><br>
+            <input type="text" id="create-appid" placeholder="AppId" style="width: 90px;">
+            <input type="text" id="create-appname" placeholder="AppName" style="width: 110px;">
+            <input type="text" id="create-secret" placeholder="AppSecretHash" style="width: 120px;">
+            <input type="text" id="create-scopes" placeholder="AllowedScopes" style="width: 120px;">
+            <input type="number" id="create-expiry" placeholder="TokenExpirationHours" style="width: 80px;">
+            <button onclick="callCreateApp()">Create App</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <strong>GET /api/auth/apps/{appId}</strong><br>
+            <input type="text" id="get-appid" placeholder="AppId" style="width: 120px;">
+            <button onclick="callGetApp()">Get App</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <strong>PUT /api/auth/apps/{appId}</strong><br>
+            <input type="text" id="update-appid" placeholder="AppId" style="width: 80px;">
+            <input type="text" id="update-appname" placeholder="AppName" style="width: 100px;">
+            <input type="text" id="update-secret" placeholder="AppSecretHash" style="width: 110px;">
+            <input type="text" id="update-scopes" placeholder="AllowedScopes" style="width: 110px;">
+            <input type="number" id="update-expiry" placeholder="TokenExpirationHours" style="width: 80px;">
+            <label><input type="checkbox" id="update-active"> Active</label>
+            <button onclick="callUpdateApp()">Update App</button>
+        </div>
+        <div style="margin-bottom: 10px;">
+            <strong>DELETE /api/auth/apps/{appId}</strong><br>
+            <input type="text" id="delete-appid" placeholder="AppId" style="width: 120px;">
+            <button onclick="callDeleteApp()">Delete App</button>
+        </div>
+    </div>
     
     <div class="section">
-        <h3>?? Statistics & Dashboard</h3>
+        <h3>Statistics & Dashboard</h3>
         <div class="grid">
-            <button onclick="testEndpoint('GET', '/api/stats/dashboard')">?? Dashboard</button>
-            <button onclick="testEndpoint('GET', '/api/stats/units')">?? Unit Stats</button>
-            <button onclick="testEndpoint('GET', '/api/stats/departments')">?? Dept Stats</button>
+            <button onclick="testEndpoint('GET', '/api/stats/dashboard')">Dashboard</button>
+            <button onclick="testEndpoint('GET', '/api/stats/units')">Unit Stats</button>
+            <button onclick="testEndpoint('GET', '/api/stats/departments')">Dept Stats</button>
         </div>
     </div>
 
     <div class="section">
-        <h3>?? Members</h3>
+        <h3>Members</h3>
         <div class="grid">
             <button onclick="testEndpoint('GET', '/api/members')">All Members</button>
             <button onclick="testEndpoint('GET', '/api/members/1')">Member by ID</button>
@@ -40,7 +78,7 @@
     </div>
 
     <div class="section">
-        <h3>?? Organization</h3>
+        <h3>Organization</h3>
         <div class="grid">
             <button onclick="testEndpoint('GET', '/api/departments')">All Departments</button>
             <button onclick="testEndpoint('GET', '/api/departments/10')">Department 10</button>
@@ -54,7 +92,7 @@
     </div>
 
     <div class="section">
-        <h3>? Role Management</h3>
+        <h3>Role Management</h3>
         <div class="grid">
             <button onclick="testEndpoint('POST', '/api/members/1/roles/10')">Assign Role (1?10)</button>
             <button onclick="testEndpoint('DELETE', '/api/members/1/roles/10')">Remove Role (1?10)</button>
@@ -69,7 +107,7 @@
     </div>
 
     <div class="section">
-        <h3>?? Advanced Search</h3>
+        <h3>Advanced Search</h3>
         <div class="grid">
             <button onclick="testEndpoint('GET', '/api/units/state/1')">Units in State 1</button>
             <button onclick="testEndpoint('GET', '/api/levels/1/departments')">Level 1 Depts</button>
@@ -82,7 +120,7 @@
     </div>
 
     <div class="section">
-        <h3>?? Import Operations</h3>
+        <h3>Import Operations</h3>
         <div class="grid">
             <button onclick="testEndpoint('GET', '/api/import/test')">Test CSV File</button>
             <button onclick="testEndpoint('GET', '/api/import/exco')">Import EXCO</button>
@@ -95,12 +133,12 @@
     </div>
 
     <div class="section" style="background: #ffebee;">
-        <h3>?? Bulk Operations</h3>
+        <h3>Bulk Operations</h3>
         <button onclick="confirmClear()" style="background: #f44336;">Clear All EXCO</button>
     </div>
 
     <div class="section">
-        <h3>?? Custom Test</h3>
+        <h3>Custom Test</h3>
         <select id="method">
             <option>GET</option>
             <option>POST</option>
@@ -109,6 +147,8 @@
         </select>
         <input type="text" id="customEndpoint" placeholder="/api/..." style="width: 300px;">
         <button onclick="testCustom()">Test</button>
+        <br>
+        <textarea id="customBody" placeholder="Request body (JSON) for POST/PUT" style="width: 100%; min-height: 80px; margin-top: 8px;"></textarea>
     </div>
 
     <div style="margin: 20px 0;">
@@ -118,31 +158,78 @@
     <div id="results"></div>
 
     <script>
-        async function testEndpoint(method, endpoint) {
+        let authToken = null;
+
+        function setAuthStatus(msg, color = '#388e3c') {
+            document.getElementById('auth-status').textContent = msg;
+            document.getElementById('auth-status').style.color = color;
+        }
+
+        async function testEndpoint(method, endpoint, body = null) {
             const resultsDiv = document.getElementById('results');
-            
             try {
-                const response = await fetch(endpoint, {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
+                const headers = { 'Content-Type': 'application/json' };
+                if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+                const options = { method, headers };
+                if (body && (method === 'POST' || method === 'PUT')) {
+                    options.body = typeof body === 'string' ? body : JSON.stringify(body);
+                }
+                const response = await fetch(endpoint, options);
                 const data = await response.text();
                 const resultDiv = document.createElement('div');
                 resultDiv.className = 'result';
-                
                 resultDiv.innerHTML = `
                     <h3>${method} ${endpoint}</h3>
                     <p><strong>Status:</strong> <span style="color: ${response.ok ? 'green' : 'red'}">${response.status} ${response.statusText}</span></p>
                     <pre>${data}</pre>
                 `;
-                
                 resultsDiv.appendChild(resultDiv);
                 resultDiv.scrollIntoView({ behavior: 'smooth' });
-                
+                // If login, try to extract token
+                if (endpoint.includes('/auth/login') && response.ok) {
+                    try {
+                        const json = JSON.parse(data);
+                        if (json.token) {
+                            authToken = json.token;
+                            setAuthStatus('Logged in');
+                        }
+                    } catch {}
+                }
+                if (endpoint.includes('/auth/logout') && response.ok) {
+                    authToken = null;
+                    setAuthStatus('Logged out', '#d32f2f');
+                }
             } catch (error) {
                 alert('Error: ' + error.message);
             }
+        }
+
+        async function authLogin() {
+            const username = document.getElementById('auth-username').value;
+            const password = document.getElementById('auth-password').value;
+            if (!username || !password) {
+                setAuthStatus('Username and password required', '#d32f2f');
+                return;
+            }
+            setAuthStatus('Logging in...', '#1976d2');
+            await testEndpoint('POST', '/api/auth/login', { username, password });
+        }
+
+        async function authRegister() {
+            const username = document.getElementById('auth-username').value;
+            const password = document.getElementById('auth-password').value;
+            const email = document.getElementById('auth-email').value;
+            if (!username || !password || !email) {
+                setAuthStatus('All fields required for register', '#d32f2f');
+                return;
+            }
+            setAuthStatus('Registering...', '#1976d2');
+            await testEndpoint('POST', '/api/auth/register', { username, password, email });
+        }
+
+        async function authLogout() {
+            setAuthStatus('Logging out...', '#1976d2');
+            await testEndpoint('POST', '/api/auth/logout');
         }
 
         async function uploadAndImport() {
@@ -193,7 +280,18 @@
         function testCustom() {
             const method = document.getElementById('method').value;
             const endpoint = document.getElementById('customEndpoint').value;
-            testEndpoint(method, endpoint);
+            let body = null;
+            if (method === 'POST' || method === 'PUT') {
+                const raw = document.getElementById('customBody').value;
+                if (raw.trim()) {
+                    try {
+                        body = JSON.parse(raw);
+                    } catch {
+                        body = raw; // send as-is if not valid JSON
+                    }
+                }
+            }
+            testEndpoint(method, endpoint, body);
         }
 
         function confirmClear() {
