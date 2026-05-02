@@ -87,7 +87,7 @@ public static class OrganizationEndpoints
 
             // Get EXCO roles for this unit
             var excoRoles = await db.Database.SqlQueryRaw<UnitExcoDto>("""
-                SELECT m.FirstName, m.LastName, m.Mkanid, d.DepartmentName, l.LevelType
+                SELECT m.FirstName, m.LastName, m.Mkanid, d.DepartmentName, lv.LevelType
                 FROM Members m
                 INNER JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
                 INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId

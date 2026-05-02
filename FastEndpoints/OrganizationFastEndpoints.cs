@@ -46,7 +46,8 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
     public override void Configure()
     {
         Get("/api/units/{id}");
-        AllowAnonymous();
+        //AllowAnonymous();
+
         Summary(s => s.Summary = "Get unit details with members and EXCO roles");
     }
 

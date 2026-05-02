@@ -24,14 +24,14 @@ public sealed class GetAllMembersEndpoint(AmsaDbContext db) : Endpoint<EmptyRequ
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
         // Single flattened raw SQL query to get all member data
-        var membersQuery = """
-            SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
-                   u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
-                   d.DepartmentName, l.LevelType
-            FROM Members m
-            INNER JOIN Units u ON m.UnitId = u.UnitId
-            INNER JOIN States s ON u.StateId = s.StateId  
-            INNER JOIN National n ON s.NationalId = n.NationalId
+         var membersQuery = """
+             SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
+                    u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
+                    d.DepartmentName, l.LevelType
+             FROM Members m
+             INNER JOIN Units u ON m.UnitId = u.UnitId
+             INNER JOIN States s ON u.StateId = s.StateId  
+             INNER JOIN Nationals n ON s.NationalId = n.NationalId
             LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
             LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
             LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
@@ -115,7 +115,7 @@ public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMember
             FROM Members m
             INNER JOIN Units u ON m.UnitId = u.UnitId
             INNER JOIN States s ON u.StateId = s.StateId  
-            INNER JOIN National n ON s.NationalId = n.NationalId
+            INNER JOIN Nationals n ON s.NationalId = n.NationalId
             LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
             LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
             LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
@@ -180,7 +180,8 @@ public sealed class GetMemberByIdEndpoint(AmsaDbContext db) : Endpoint<GetMember
 }
 
 // Get Member By MKAN ID Endpoint
-public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMemberByMkanIdRequest, MemberDetailResponse>
+public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db)
+    : Endpoint<GetMemberByMkanIdRequest, MemberDetailResponse>
 {
     public override void Configure()
     {
@@ -191,7 +192,7 @@ public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMe
 
     public override async Task HandleAsync(GetMemberByMkanIdRequest req, CancellationToken ct)
     {
-        // Use Result pattern for input validation
+        // Validate MKAN ID
         var validationResult = MemberValidationMethods.ValidateMkanIdRequest(req);
         if (!validationResult.IsSuccess)
         {
@@ -199,69 +200,35 @@ public sealed class GetMemberByMkanIdEndpoint(AmsaDbContext db) : Endpoint<GetMe
             return;
         }
 
-        // Single comprehensive raw SQL query for member by MKANID
-        var memberQuery = """
-            SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid,
-                   u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName,
-                   d.DepartmentName, l.LevelType
-            FROM Members m
-            INNER JOIN Units u ON m.UnitId = u.UnitId
-            INNER JOIN States s ON u.StateId = s.StateId  
-            INNER JOIN National n ON s.NationalId = n.NationalId
-            LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
-            LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
-            LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
-            LEFT JOIN Levels l ON ld.LevelId = l.LevelId
-            WHERE m.Mkanid = {0}
-            ORDER BY m.MemberId
-            """;
-        
-        var memberRaw = await db.Database.SqlQueryRaw<MemberDetailRawDto>(memberQuery, req.MkanId)
-            .ToListAsync(ct);
+        // Load member with full hierarchy
+        var member = await db.Members
+            .Include(m => m.Unit)
+                .ThenInclude(u => u.State)
+                    .ThenInclude(s => s.National)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Mkanid == req.MkanId, ct);
 
-        if (!memberRaw.Any())
+        if (member == null)
         {
             await Send.NotFoundAsync(ct);
             return;
         }
 
-        var firstMember = memberRaw.First();
-        var roles = memberRaw.Where(m => m.DepartmentName != null)
-            .Select(m => new DepartmentAtLevelDto
-            {
-                DepartmentName = m.DepartmentName!,
-                LevelType = m.LevelType!
-            }).ToList();
+        // Load roles (Department + Level)
+        var rolesData = await db.MemberLevelDepartments
+            .Where(mld => mld.MemberId == member.MemberId)
+            .Include(mld => mld.LevelDepartment.Department)
+            .Include(mld => mld.LevelDepartment.Level)
+            .AsNoTracking()
+            .ToListAsync(ct);
 
-        var response = new MemberDetailResponse
-        {
-            MemberId = firstMember.MemberId,
-            FirstName = firstMember.FirstName,
-            LastName = firstMember.LastName,
-            Email = firstMember.Email,
-            Phone = firstMember.Phone,
-            Mkanid = firstMember.Mkanid,
-            Unit = new UnitHierarchyDto
-            {
-                UnitId = firstMember.UnitId,
-                UnitName = firstMember.UnitName,
-                State = new StateHierarchyDto
-                {
-                    StateId = firstMember.StateId,
-                    StateName = firstMember.StateName,
-                    National = new NationalDto
-                    {
-                        NationalId = firstMember.NationalId,
-                        NationalName = firstMember.NationalName
-                    }
-                }
-            },
-            Roles = roles
-        };
+        // Convert to response DTO
+        var response = member.ToDetailResponseWithRoles(rolesData);
 
         await Send.OkAsync(response, ct);
     }
 }
+
 
 // Get Members By Unit Endpoint
 public sealed class GetMembersByUnitEndpoint(AmsaDbContext db) : Endpoint<GetMembersByUnitRequest, List<MemberSummaryResponse>>

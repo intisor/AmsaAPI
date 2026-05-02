@@ -50,7 +50,11 @@ if (secretKey.Length < 32)
 		"Update it using: dotnet user-secrets set \"Jwt:SecretKey\" \"your-longer-secret-key-here\"");
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(options =>
+	{
+		options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+		options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+	})
     .AddJwtBearer(options =>
     {
 		options.SaveToken = true;
