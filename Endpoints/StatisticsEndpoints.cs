@@ -75,20 +75,31 @@ public static class StatisticsEndpoints
     }
 
     private static async Task<IResult> GetUnitStats(AmsaDbContext db)
-    {
-        try
-        {
-            var unitStats = await db.Database
-                .SqlQueryRaw<UnitStatsDto>("SELECT u.UnitId, u.UnitName, COUNT(m.MemberId) as MemberCount FROM Units u LEFT JOIN Members m ON u.UnitId = m.UnitId GROUP BY u.UnitId, u.UnitName")
-                .ToListAsync();
+     {
+         try
+         {
+             var unitStats = await db.Database
+                 .SqlQueryRaw<UnitStatsDto>("""
+                     SELECT u.UnitId, u.UnitName, s.StateName,
+                            COUNT(DISTINCT m.MemberId) as MemberCount,
+                            COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
+                     FROM Units u
+                     INNER JOIN States s ON u.StateId = s.StateId
+                     LEFT JOIN Members m ON u.UnitId = m.UnitId
+                     LEFT JOIN Levels l ON u.UnitId = l.UnitId
+                     LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
+                     LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
+                     GROUP BY u.UnitId, u.UnitName, s.StateName
+                 """)
+                 .ToListAsync();
 
-            return Results.Ok(unitStats);
-        }
-        catch (Exception ex)
-        {
-            return Results.Problem($"Error retrieving unit statistics: {ex.Message}");
-        }
-    }
+             return Results.Ok(unitStats);
+         }
+         catch (Exception ex)
+         {
+             return Results.Problem($"Error retrieving unit statistics: {ex.Message}");
+         }
+     }
 
     private static async Task<IResult> GetDepartmentStats(AmsaDbContext db)
     {

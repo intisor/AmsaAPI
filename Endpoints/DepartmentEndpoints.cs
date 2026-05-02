@@ -70,21 +70,15 @@ public static class DepartmentEndpoints
                 return Results.NotFound($"Department with ID {id} not found");
 
             // Get level information for this department
-            var levels = await db.Database.SqlQueryRaw<DepartmentLevelDto>("""
-                SELECT ld.LevelDepartmentId, l.LevelType,
-                       CASE 
-                           WHEN l.NationalId IS NOT NULL THEN 'National'
-                           WHEN l.StateId IS NOT NULL THEN 'State'
-                           WHEN l.UnitId IS NOT NULL THEN 'Unit'
-                           ELSE 'Unknown'
-                       END as Scope,
-                       COUNT(mld.MemberLevelDepartmentId) as MemberCount
-                FROM LevelDepartments ld
-                INNER JOIN Levels l ON ld.LevelId = l.LevelId
-                LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-                WHERE ld.DepartmentId = {0}
-                GROUP BY ld.LevelDepartmentId, l.LevelType, l.NationalId, l.StateId, l.UnitId
-                """, id).ToListAsync();
+             var levels = await db.Database.SqlQueryRaw<DepartmentLevelDto>("""
+                 SELECT ld.LevelDepartmentId, l.LevelType,
+                        COUNT(mld.MemberLevelDepartmentId) as MemberCount
+                 FROM LevelDepartments ld
+                 INNER JOIN Levels l ON ld.LevelId = l.LevelId
+                 LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
+                 WHERE ld.DepartmentId = {0}
+                 GROUP BY ld.LevelDepartmentId, l.LevelType
+                 """, id).ToListAsync();
 
             var response = new DepartmentDetailResponse
             {
