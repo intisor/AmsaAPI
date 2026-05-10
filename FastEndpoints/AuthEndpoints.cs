@@ -47,8 +47,8 @@ public class GenerateTokenEndpoint : Endpoint<TokenGenerationRequest, object>
             return;
         }
 
-        Response = new { token = result.Value, tokenType = "Bearer" };
-        await Send.OkAsync(Response,ct);
+        Response = new { token = result.Value, tokenType = "Bearer", expiresAt = DateTime.UtcNow.AddHours(24) };
+        await Send.OkAsync(Response, ct);
     }
 }
 
