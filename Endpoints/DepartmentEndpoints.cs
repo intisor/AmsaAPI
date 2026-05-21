@@ -88,7 +88,7 @@ public static class DepartmentEndpoints
         }
     }
 
-    private static async Task<IResult> CreateDepartment(CreateDepartmentRequest request, AmsaDbContext db)
+    private static async Task<IResult> CreateDepartment(Department request, AmsaDbContext db)
     {
         try
         {
@@ -119,7 +119,7 @@ public static class DepartmentEndpoints
         }
     }
 
-    private static async Task<IResult> UpdateDepartment(int id, UpdateDepartmentRequest request, AmsaDbContext db)
+    private static async Task<IResult> UpdateDepartment(int id, Department request, AmsaDbContext db)
     {
         try
         {

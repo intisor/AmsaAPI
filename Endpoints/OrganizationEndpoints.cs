@@ -138,7 +138,7 @@ public static class OrganizationEndpoints
         }
     }
 
-    private static async Task<IResult> CreateUnit(CreateUnitRequest request, AmsaDbContext db)
+    private static async Task<IResult> CreateUnit(Unit request, AmsaDbContext db)
     {
         try
         {
@@ -164,7 +164,7 @@ public static class OrganizationEndpoints
         }
     }
 
-    private static async Task<IResult> UpdateUnit(int id, UpdateUnitRequest request, AmsaDbContext db)
+    private static async Task<IResult> UpdateUnit(int id, Unit request, AmsaDbContext db)
     {
         try
         {
