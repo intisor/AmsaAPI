@@ -43,24 +43,28 @@ public static class MemberEndpoints
     {
         try
         {
-            var membersWithHierarchy = await db.Members
-                .Include(m => m.Unit.State.National)
-                .AsNoTracking()
-                .ToListAsync();
+            var members = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
+                SELECT 
+                    m.MemberId,
+                    m.FirstName,
+                    m.LastName,
+                    m.Email,
+                    m.Phone,
+                    m.Mkanid,
+                    u.UnitId,
+                    u.UnitName,
+                    s.StateId,
+                    s.StateName,
+                    n.NationalId,
+                    n.NationalName
+                FROM Members m
+                INNER JOIN Units u ON m.UnitId = u.UnitId
+                INNER JOIN States s ON u.StateId = s.StateId
+                INNER JOIN Nationals n ON s.NationalId = n.NationalId
+                ORDER BY m.FirstName, m.LastName
+                """).ToListAsync();
 
-            var rolesData = await db.MemberLevelDepartments
-                .Include(mld => mld.LevelDepartment.Department)
-                .Include(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync();
-
-            var response = membersWithHierarchy.Select(member => 
-            {
-                var memberRoles = rolesData.Where(role => role.MemberId == member.MemberId).ToList();
-                return member.ToDetailResponseWithRoles(memberRoles);
-            }).ToList();
-
-            return Results.Ok(response);
+            return Results.Ok(members);
         }
         catch (Exception ex)
         {
@@ -72,23 +76,31 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Members
-                .Include(m => m.Unit.State.National)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.MemberId == id);
+            var member = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
+                SELECT 
+                    m.MemberId,
+                    m.FirstName,
+                    m.LastName,
+                    m.Email,
+                    m.Phone,
+                    m.Mkanid,
+                    u.UnitId,
+                    u.UnitName,
+                    s.StateId,
+                    s.StateName,
+                    n.NationalId,
+                    n.NationalName
+                FROM Members m
+                INNER JOIN Units u ON m.UnitId = u.UnitId
+                INNER JOIN States s ON u.StateId = s.StateId
+                INNER JOIN Nationals n ON s.NationalId = n.NationalId
+                WHERE m.MemberId = {0}
+                """, id).FirstOrDefaultAsync();
 
             if (member == null)
                 return Results.NotFound($"Member with ID {id} not found");
 
-            var rolesData = await db.MemberLevelDepartments
-                .Where(mld => mld.MemberId == id)
-                .Include(mld => mld.LevelDepartment.Department)
-                .Include(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync();
-
-            var response = member.ToDetailResponseWithRoles(rolesData);
-            return Results.Ok(response);
+            return Results.Ok(member);
         }
         catch (Exception ex)
         {
@@ -100,23 +112,31 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Members
-                .Include(m => m.Unit.State.National)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Mkanid == mkanId);
+            var member = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
+                SELECT 
+                    m.MemberId,
+                    m.FirstName,
+                    m.LastName,
+                    m.Email,
+                    m.Phone,
+                    m.Mkanid,
+                    u.UnitId,
+                    u.UnitName,
+                    s.StateId,
+                    s.StateName,
+                    n.NationalId,
+                    n.NationalName
+                FROM Members m
+                INNER JOIN Units u ON m.UnitId = u.UnitId
+                INNER JOIN States s ON u.StateId = s.StateId
+                INNER JOIN Nationals n ON s.NationalId = n.NationalId
+                WHERE m.Mkanid = {0}
+                """, mkanId).FirstOrDefaultAsync();
 
             if (member == null)
                 return Results.NotFound($"Member with MKAN ID {mkanId} not found");
 
-            var rolesData = await db.MemberLevelDepartments
-                .Where(mld => mld.MemberId == member.MemberId)
-                .Include(mld => mld.LevelDepartment.Department)
-                .Include(mld => mld.LevelDepartment.Level)
-                .AsNoTracking()
-                .ToListAsync();
-
-            var response = member.ToDetailResponseWithRoles(rolesData);
-            return Results.Ok(response);
+            return Results.Ok(member);
         }
         catch (Exception ex)
         {
@@ -128,18 +148,12 @@ public static class MemberEndpoints
     {
         try
         {
-            var members = await db.Members
-                .Where(m => m.UnitId == unitId)
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync();
+            var members = await db.Database.SqlQueryRaw<MemberSummaryResponse>("""
+                SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid
+                FROM Members m
+                WHERE m.UnitId = {0}
+                ORDER BY m.FirstName, m.LastName
+                """, unitId).ToListAsync();
 
             return members.Count != 0
                 ? Results.Ok(members)
@@ -155,18 +169,14 @@ public static class MemberEndpoints
     {
         try
         {
-            var members = await db.Members
-                .Where(m => m.MemberLevelDepartments.Any(mld => mld.LevelDepartment.DepartmentId == departmentId))
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync();
+            var members = await db.Database.SqlQueryRaw<MemberSummaryResponse>("""
+                SELECT DISTINCT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid
+                FROM Members m
+                INNER JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+                INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+                WHERE ld.DepartmentId = {0}
+                ORDER BY m.FirstName, m.LastName
+                """, departmentId).ToListAsync();
 
             return Results.Ok(members);
         }
@@ -180,22 +190,14 @@ public static class MemberEndpoints
     {
         try
         {
-            var collation = "SQL_Latin1_General_CP1_CI_AI";
             var pattern = $"%{name}%";
-            var members = await db.Members
-                .Where(m =>
-                    EF.Functions.Like(EF.Functions.Collate(m.FirstName, collation), pattern) ||
-                    EF.Functions.Like(EF.Functions.Collate(m.LastName, collation), pattern))
-                .Select(m => new MemberSummaryResponse
-                {
-                    MemberId = m.MemberId,
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Email = m.Email,
-                    Phone = m.Phone,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync();
+            var members = await db.Database.SqlQueryRaw<MemberSummaryResponse>("""
+                SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid
+                FROM Members m
+                WHERE m.FirstName LIKE {0} COLLATE SQL_Latin1_General_CP1_CI_AI
+                   OR m.LastName LIKE {0} COLLATE SQL_Latin1_General_CP1_CI_AI
+                ORDER BY m.FirstName, m.LastName
+                """, pattern).ToListAsync();
 
             return Results.Ok(members);
         }
@@ -209,20 +211,23 @@ public static class MemberEndpoints
     {
         try
         {
-            // Check if MKAN ID already exists
-            var existingMember = await db.Members
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Mkanid == request.Mkanid);
-            
-            if (existingMember != null)
+            // Check if MKAN ID already exists using raw SQL
+            var existingMember = await db.Database.SqlQueryRaw<int>("""
+                SELECT m.MemberId
+                FROM Members m
+                WHERE m.Mkanid = {0}
+                """, request.Mkanid).FirstOrDefaultAsync();
+
+            if (existingMember != 0)
                 return Results.BadRequest($"Member with MKAN ID {request.Mkanid} already exists");
 
             // Validate UnitId exists
-            var unitExists = await db.Units
-                .AsNoTracking()
-                .AnyAsync(u => u.UnitId == request.UnitId);
-            
-            if (!unitExists)
+            var unitExists = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM Units
+                WHERE UnitId = {0}
+                """, request.UnitId).FirstOrDefaultAsync();
+
+            if (unitExists == 0)
                 return Results.BadRequest($"Unit with ID {request.UnitId} does not exist");
 
             var member = request.ToEntity();
@@ -248,30 +253,51 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Members.FindAsync(id);
-            if (member == null)
+            // Get member using raw SQL
+            var member = await db.Database.SqlQueryRaw<int>("""
+                SELECT m.MemberId
+                FROM Members m
+                WHERE m.MemberId = {0}
+                """, id).FirstOrDefaultAsync();
+
+            if (member == 0)
                 return Results.NotFound($"Member with ID {id} not found");
 
             // Validate UnitId exists if changed
-            if (member.UnitId != request.UnitId)
+            var currentUnit = await db.Database.SqlQueryRaw<int>("""
+                SELECT m.UnitId
+                FROM Members m
+                WHERE m.MemberId = {0}
+                """, id).FirstOrDefaultAsync();
+
+            if (currentUnit != request.UnitId)
             {
-                var unitExists = await db.Units
-                    .AsNoTracking()
-                    .AnyAsync(u => u.UnitId == request.UnitId);
-                
-                if (!unitExists)
+                var unitExists = await db.Database.SqlQueryRaw<int>("""
+                    SELECT COUNT(*) FROM Units
+                    WHERE UnitId = {0}
+                    """, request.UnitId).FirstOrDefaultAsync();
+
+                if (unitExists == 0)
                     return Results.BadRequest($"Unit with ID {request.UnitId} does not exist");
             }
 
-            request.UpdateEntity(member);
-            await db.SaveChangesAsync();
+            // Update using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE Members
+                SET FirstName = {request.FirstName},
+                    LastName = {request.LastName},
+                    Email = {request.Email},
+                    Phone = {request.Phone},
+                    UnitId = {request.UnitId}
+                WHERE MemberId = {id}
+                """);
 
             return Results.Ok(new
             {
-                member.MemberId,
-                member.FirstName,
-                member.LastName,
-                member.Mkanid
+                MemberId = id,
+                request.FirstName,
+                request.LastName,
+                request.UnitId
             });
         }
         catch (Exception ex)
@@ -284,13 +310,22 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Members.FindAsync(id);
-            if (member == null)
+            // Get member using raw SQL
+            var member = await db.Database.SqlQueryRaw<(int MemberId, string FirstName, string LastName)>("""
+                SELECT m.MemberId, m.FirstName, m.LastName
+                FROM Members m
+                WHERE m.MemberId = {0}
+                """, id).FirstOrDefaultAsync();
+
+            if (member.MemberId == 0)
                 return Results.NotFound($"Member with ID {id} not found");
 
-            db.Members.Remove(member);
-            await db.SaveChangesAsync();
-            
+            // Delete using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                DELETE FROM Members
+                WHERE MemberId = {id}
+                """);
+
             return Results.Ok(new
             {
                 Message = $"Member {member.FirstName} {member.LastName} deleted successfully"

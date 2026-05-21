@@ -6,9 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AmsaAPI.FastEndpoints;
 
-// Private record DTO for raw SQL projection - minimal and functional
-file record DepartmentMemberCountDto(int DepartmentId, string DepartmentName, int MemberCount);
-
 // Get All Departments Endpoint
 public sealed class GetAllDepartmentsEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, List<DepartmentSummaryDto>>
 {
@@ -21,28 +18,19 @@ public sealed class GetAllDepartmentsEndpoint(AmsaDbContext db) : Endpoint<Empty
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        // Single optimized raw SQL query with JOIN and GROUP BY
-        var departmentsQuery = """
-            SELECT 
-                d.DepartmentId, 
-                d.DepartmentName, 
-                COUNT(DISTINCT mld.MemberLevelDepartmentId) as MemberCount
-            FROM Departments d
-            LEFT JOIN LevelDepartments ld ON d.DepartmentId = ld.DepartmentId  
-            LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-            GROUP BY d.DepartmentId, d.DepartmentName
-            ORDER BY d.DepartmentName
-            """;
-        
-        var departmentsRaw = await db.Database.SqlQueryRaw<DepartmentMemberCountDto>(departmentsQuery)
+        // LINQ query with planning mode - optimized projection with grouping
+        var departments = await db.Departments
+            .AsNoTracking()
+            .Select(d => new DepartmentSummaryDto
+            {
+                DepartmentId = d.DepartmentId,
+                DepartmentName = d.DepartmentName,
+                MemberCount = d.LevelDepartments
+                    .SelectMany(ld => ld.MemberLevelDepartments)
+                    .Count()
+            })
+            .OrderBy(d => d.DepartmentName)
             .ToListAsync(ct);
-
-        var departments = departmentsRaw.Select(d => new DepartmentSummaryDto
-        {
-            DepartmentId = d.DepartmentId,
-            DepartmentName = d.DepartmentName,
-            MemberCount = d.MemberCount
-        }).ToList();
 
         await Send.OkAsync(departments, ct);
     }

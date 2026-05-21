@@ -39,17 +39,8 @@ public static class DepartmentEndpoints
                 GROUP BY d.DepartmentId, d.DepartmentName
                 ORDER BY d.DepartmentName
                 """).ToListAsync();
-            var departmentsEf = await db.Departments
-                .AsNoTracking()
-                .OrderBy(d => d.DepartmentName)
-                .Select(d => new
-                {
-                    d.DepartmentId,
-                    d.DepartmentName
-                })
-                .ToListAsync();
 
-            return Results.Ok(departmentsEf);
+            return Results.Ok(departments);
         }
         catch (Exception ex)
         {
@@ -61,24 +52,26 @@ public static class DepartmentEndpoints
     {
         try
         {
-            // Get department basic info
-            var department = await db.Departments
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DepartmentId == id);
+            // Get department basic info using raw SQL
+            var department = await db.Database.SqlQueryRaw<DepartmentSummaryDto>("""
+                SELECT d.DepartmentId, d.DepartmentName, 0 as MemberCount
+                FROM Departments d
+                WHERE d.DepartmentId = {0}
+                """, id).FirstOrDefaultAsync();
 
             if (department == null)
                 return Results.NotFound($"Department with ID {id} not found");
 
             // Get level information for this department
-             var levels = await db.Database.SqlQueryRaw<DepartmentLevelDto>("""
-                 SELECT ld.LevelDepartmentId, l.LevelType,
-                        COUNT(mld.MemberLevelDepartmentId) as MemberCount
-                 FROM LevelDepartments ld
-                 INNER JOIN Levels l ON ld.LevelId = l.LevelId
-                 LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-                 WHERE ld.DepartmentId = {0}
-                 GROUP BY ld.LevelDepartmentId, l.LevelType
-                 """, id).ToListAsync();
+            var levels = await db.Database.SqlQueryRaw<DepartmentLevelDto>("""
+                SELECT ld.LevelDepartmentId, l.LevelType,
+                       COUNT(mld.MemberLevelDepartmentId) as MemberCount
+                FROM LevelDepartments ld
+                INNER JOIN Levels l ON ld.LevelId = l.LevelId
+                LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
+                WHERE ld.DepartmentId = {0}
+                GROUP BY ld.LevelDepartmentId, l.LevelType
+                """, id).ToListAsync();
 
             var response = new DepartmentDetailResponse
             {
@@ -95,21 +88,24 @@ public static class DepartmentEndpoints
         }
     }
 
-    private static async Task<IResult> CreateDepartment(Department department, AmsaDbContext db)
+    private static async Task<IResult> CreateDepartment(CreateDepartmentRequest request, AmsaDbContext db)
     {
         try
         {
-            // Check if department name already exists
-            var existingDept = await db.Departments
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DepartmentName == department.DepartmentName);
+            // Check if department name already exists using raw SQL
+            var existingDept = await db.Database.SqlQueryRaw<DepartmentSummaryDto>("""
+                SELECT d.DepartmentId, d.DepartmentName, 0 as MemberCount
+                FROM Departments d
+                WHERE d.DepartmentName = {0}
+                """, request.DepartmentName).FirstOrDefaultAsync();
 
             if (existingDept != null)
-                return Results.BadRequest($"Department '{department.DepartmentName}' already exists");
+                return Results.BadRequest($"Department '{request.DepartmentName}' already exists");
 
+            var department = new Department { DepartmentName = request.DepartmentName };
             db.Departments.Add(department);
             await db.SaveChangesAsync();
-            
+
             return Results.Created($"/api/minimal/departments/{department.DepartmentId}", 
                 new
                 {
@@ -123,29 +119,41 @@ public static class DepartmentEndpoints
         }
     }
 
-    private static async Task<IResult> UpdateDepartment(int id, Department updatedDept, AmsaDbContext db)
+    private static async Task<IResult> UpdateDepartment(int id, UpdateDepartmentRequest request, AmsaDbContext db)
     {
         try
         {
-            var department = await db.Departments.FindAsync(id);
+            // Get department using raw SQL
+            var department = await db.Database.SqlQueryRaw<DepartmentSummaryDto>("""
+                SELECT d.DepartmentId, d.DepartmentName, 0 as MemberCount
+                FROM Departments d
+                WHERE d.DepartmentId = {0}
+                """, id).FirstOrDefaultAsync();
+
             if (department == null)
                 return Results.NotFound($"Department with ID {id} not found");
 
             // Check if new name already exists (excluding current department)
-            var existingDept = await db.Departments
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DepartmentName == updatedDept.DepartmentName && d.DepartmentId != id);
+            var existingDept = await db.Database.SqlQueryRaw<DepartmentSummaryDto>("""
+                SELECT d.DepartmentId, d.DepartmentName, 0 as MemberCount
+                FROM Departments d
+                WHERE d.DepartmentName = {0} AND d.DepartmentId != {1}
+                """, request.DepartmentName, id).FirstOrDefaultAsync();
 
             if (existingDept != null)
-                return Results.BadRequest($"Department '{updatedDept.DepartmentName}' already exists");
+                return Results.BadRequest($"Department '{request.DepartmentName}' already exists");
 
-            department.DepartmentName = updatedDept.DepartmentName;
-            await db.SaveChangesAsync();
-            
+            // Update using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE Departments
+                SET DepartmentName = {request.DepartmentName}
+                WHERE DepartmentId = {id}
+                """);
+
             return Results.Ok(new
             {
-                department.DepartmentId,
-                department.DepartmentName
+                DepartmentId = id,
+                DepartmentName = request.DepartmentName
             });
         }
         catch (Exception ex)
@@ -158,21 +166,31 @@ public static class DepartmentEndpoints
     {
         try
         {
-            var department = await db.Departments.FindAsync(id);
+            // Get department using raw SQL
+            var department = await db.Database.SqlQueryRaw<DepartmentSummaryDto>("""
+                SELECT d.DepartmentId, d.DepartmentName, 0 as MemberCount
+                FROM Departments d
+                WHERE d.DepartmentId = {0}
+                """, id).FirstOrDefaultAsync();
+
             if (department == null)
                 return Results.NotFound($"Department with ID {id} not found");
 
-            // Check if department has associated level departments
-            var hasLevelDepartments = await db.LevelDepartments
-                .AsNoTracking()
-                .AnyAsync(ld => ld.DepartmentId == id);
+            // Check if department has associated level departments using raw SQL
+            var hasLevelDepartments = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM LevelDepartments
+                WHERE DepartmentId = {0}
+                """, id).FirstOrDefaultAsync();
 
-            if (hasLevelDepartments)
+            if (hasLevelDepartments > 0)
                 return Results.BadRequest("Cannot delete department with existing level assignments");
 
-            db.Departments.Remove(department);
-            await db.SaveChangesAsync();
-            
+            // Delete using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                DELETE FROM Departments
+                WHERE DepartmentId = {id}
+                """);
+
             return Results.Ok(new
             {
                 Message = $"Department '{department.DepartmentName}' deleted successfully"

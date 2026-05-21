@@ -138,21 +138,23 @@ public static class OrganizationEndpoints
         }
     }
 
-    private static async Task<IResult> CreateUnit(Unit unit, AmsaDbContext db)
+    private static async Task<IResult> CreateUnit(CreateUnitRequest request, AmsaDbContext db)
     {
         try
         {
-            // Validate StateId exists
-            var stateExists = await db.States
-                .AsNoTracking()
-                .AnyAsync(s => s.StateId == unit.StateId);
+            // Validate StateId exists using raw SQL
+            var stateExists = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM States
+                WHERE StateId = {0}
+                """, request.StateId).FirstOrDefaultAsync();
 
-            if (!stateExists)
-                return Results.BadRequest($"State with ID {unit.StateId} does not exist");
+            if (stateExists == 0)
+                return Results.BadRequest($"State with ID {request.StateId} does not exist");
 
+            var unit = new Unit { UnitName = request.UnitName, StateId = request.StateId };
             db.Units.Add(unit);
             await db.SaveChangesAsync();
-            
+
             return Results.Created($"/api/minimal/units/{unit.UnitId}", 
                 new { unit.UnitId, unit.UnitName, unit.StateId });
         }
@@ -162,30 +164,36 @@ public static class OrganizationEndpoints
         }
     }
 
-    private static async Task<IResult> UpdateUnit(int id, Unit updatedUnit, AmsaDbContext db)
+    private static async Task<IResult> UpdateUnit(int id, UpdateUnitRequest request, AmsaDbContext db)
     {
         try
         {
-            var unit = await db.Units.FindAsync(id);
-            if (unit == null)
+            // Get unit using raw SQL
+            var unitExists = await db.Database.SqlQueryRaw<int>("""
+                SELECT u.UnitId FROM Units u
+                WHERE u.UnitId = {0}
+                """, id).FirstOrDefaultAsync();
+
+            if (unitExists == 0)
                 return Results.NotFound($"Unit with ID {id} not found");
 
-            // Validate StateId exists if changed
-            if (unit.StateId != updatedUnit.StateId)
-            {
-                var stateExists = await db.States
-                    .AsNoTracking()
-                    .AnyAsync(s => s.StateId == updatedUnit.StateId);
+            // Validate StateId exists using raw SQL
+            var stateExists = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM States
+                WHERE StateId = {0}
+                """, request.StateId).FirstOrDefaultAsync();
 
-                if (!stateExists)
-                    return Results.BadRequest($"State with ID {updatedUnit.StateId} does not exist");
-            }
+            if (stateExists == 0)
+                return Results.BadRequest($"State with ID {request.StateId} does not exist");
 
-            unit.UnitName = updatedUnit.UnitName;
-            unit.StateId = updatedUnit.StateId;
-            await db.SaveChangesAsync();
-            
-            return Results.Ok(new { unit.UnitId, unit.UnitName, unit.StateId });
+            // Update using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE Units
+                SET UnitName = {request.UnitName}, StateId = {request.StateId}
+                WHERE UnitId = {id}
+                """);
+
+            return Results.Ok(new { UnitId = id, request.UnitName, request.StateId });
         }
         catch (Exception ex)
         {
@@ -197,21 +205,30 @@ public static class OrganizationEndpoints
     {
         try
         {
-            var unit = await db.Units.FindAsync(id);
-            if (unit == null)
+            // Get unit using raw SQL
+            var unit = await db.Database.SqlQueryRaw<(int UnitId, string UnitName)>("""
+                SELECT u.UnitId, u.UnitName FROM Units u
+                WHERE u.UnitId = {0}
+                """, id).FirstOrDefaultAsync();
+
+            if (unit.UnitId == 0)
                 return Results.NotFound($"Unit with ID {id} not found");
 
-            // Check if unit has members
-            var hasMembers = await db.Members
-                .AsNoTracking()
-                .AnyAsync(m => m.UnitId == id);
+            // Check if unit has members using raw SQL
+            var hasMembers = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM Members
+                WHERE UnitId = {0}
+                """, id).FirstOrDefaultAsync();
 
-            if (hasMembers)
+            if (hasMembers > 0)
                 return Results.BadRequest("Cannot delete unit with existing members");
 
-            db.Units.Remove(unit);
-            await db.SaveChangesAsync();
-            
+            // Delete using raw SQL
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                DELETE FROM Units
+                WHERE UnitId = {id}
+                """);
+
             return Results.Ok(new { Message = $"Unit '{unit.UnitName}' deleted successfully" });
         }
         catch (Exception ex)
