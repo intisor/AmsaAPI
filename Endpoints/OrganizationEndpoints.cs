@@ -62,7 +62,7 @@ public static class OrganizationEndpoints
         try
         {
             var unit = await db.Database.SqlQueryRaw<UnitDetailDto>("""
-                SELECT u.UnitId, u.UnitName, s.StateId, s.StateName, 
+                SELECT u.UnitId, u.UnitName, s.StateId, s.StateName,
                        n.NationalId, n.NationalName,
                        COUNT(DISTINCT m.MemberId) as MemberCount
                 FROM Units u
@@ -71,13 +71,11 @@ public static class OrganizationEndpoints
                 LEFT JOIN Members m ON u.UnitId = m.UnitId
                 WHERE u.UnitId = {0}
                 GROUP BY u.UnitId, u.UnitName, s.StateId, s.StateName, n.NationalId, n.NationalName
-                """, id).ToListAsync();
+                """, id).FirstOrDefaultAsync();
 
-            var unitDetail = unit.FirstOrDefault();
-            if (unitDetail == null)
+            if (unit == null)
                 return Results.NotFound($"Unit with ID {id} not found");
 
-            // Get members for this unit
             var members = await db.Database.SqlQueryRaw<UnitMemberDto>("""
                 SELECT MemberId, FirstName, LastName, Email, Phone, Mkanid
                 FROM Members
@@ -85,7 +83,6 @@ public static class OrganizationEndpoints
                 ORDER BY FirstName, LastName
                 """, id).ToListAsync();
 
-            // Get EXCO roles for this unit
             var excoRoles = await db.Database.SqlQueryRaw<UnitExcoDto>("""
                 SELECT m.FirstName, m.LastName, m.Mkanid, d.DepartmentName, lv.LevelType
                 FROM Members m
@@ -99,7 +96,7 @@ public static class OrganizationEndpoints
 
             var response = new UnitDetailResponse
             {
-                Unit = unitDetail,
+                Unit = unit,
                 Members = members,
                 ExcoRoles = excoRoles
             };
@@ -142,7 +139,6 @@ public static class OrganizationEndpoints
     {
         try
         {
-            // Validate StateId exists using raw SQL
             var stateExists = await db.Database.SqlQueryRaw<int>("""
                 SELECT COUNT(*) FROM States
                 WHERE StateId = {0}
@@ -155,7 +151,7 @@ public static class OrganizationEndpoints
             db.Units.Add(unit);
             await db.SaveChangesAsync();
 
-            return Results.Created($"/api/minimal/units/{unit.UnitId}", 
+            return Results.Created($"/api/minimal/units/{unit.UnitId}",
                 new { unit.UnitId, unit.UnitName, unit.StateId });
         }
         catch (Exception ex)
@@ -168,7 +164,6 @@ public static class OrganizationEndpoints
     {
         try
         {
-            // Get unit using raw SQL
             var unitExists = await db.Database.SqlQueryRaw<int>("""
                 SELECT u.UnitId FROM Units u
                 WHERE u.UnitId = {0}
@@ -177,7 +172,6 @@ public static class OrganizationEndpoints
             if (unitExists == 0)
                 return Results.NotFound($"Unit with ID {id} not found");
 
-            // Validate StateId exists using raw SQL
             var stateExists = await db.Database.SqlQueryRaw<int>("""
                 SELECT COUNT(*) FROM States
                 WHERE StateId = {0}
@@ -186,7 +180,6 @@ public static class OrganizationEndpoints
             if (stateExists == 0)
                 return Results.BadRequest($"State with ID {request.StateId} does not exist");
 
-            // Update using raw SQL
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 UPDATE Units
                 SET UnitName = {request.UnitName}, StateId = {request.StateId}
@@ -205,7 +198,6 @@ public static class OrganizationEndpoints
     {
         try
         {
-            // Get unit using raw SQL
             var unit = await db.Database.SqlQueryRaw<(int UnitId, string UnitName)>("""
                 SELECT u.UnitId, u.UnitName FROM Units u
                 WHERE u.UnitId = {0}
@@ -214,7 +206,6 @@ public static class OrganizationEndpoints
             if (unit.UnitId == 0)
                 return Results.NotFound($"Unit with ID {id} not found");
 
-            // Check if unit has members using raw SQL
             var hasMembers = await db.Database.SqlQueryRaw<int>("""
                 SELECT COUNT(*) FROM Members
                 WHERE UnitId = {0}
@@ -223,7 +214,6 @@ public static class OrganizationEndpoints
             if (hasMembers > 0)
                 return Results.BadRequest("Cannot delete unit with existing members");
 
-            // Delete using raw SQL
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 DELETE FROM Units
                 WHERE UnitId = {id}
@@ -283,13 +273,12 @@ public static class OrganizationEndpoints
                 LEFT JOIN Members m ON u.UnitId = m.UnitId
                 WHERE s.StateId = {0}
                 GROUP BY s.StateId, s.StateName, n.NationalId, n.NationalName
-                """, id).ToListAsync();
+                """, id).FirstOrDefaultAsync();
 
-            var stateDetail = state.FirstOrDefault();
-            if (stateDetail == null)
+            if (state == null)
                 return Results.NotFound($"State with ID {id} not found");
 
-            return Results.Ok(stateDetail);
+            return Results.Ok(state);
         }
         catch (Exception ex)
         {
@@ -301,26 +290,26 @@ public static class OrganizationEndpoints
     {
         try
         {
-            // Validate NationalId exists
-            var nationalExists = await db.Nationals
-                .AsNoTracking()
-                .AnyAsync(n => n.NationalId == state.NationalId);
+            var nationalExists = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM Nationals
+                WHERE NationalId = {0}
+                """, state.NationalId).FirstOrDefaultAsync();
 
-            if (!nationalExists)
+            if (nationalExists == 0)
                 return Results.BadRequest($"National with ID {state.NationalId} does not exist");
 
-            // Check if state name already exists
-            var existingState = await db.States
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.StateName == state.StateName);
+            var existingState = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) FROM States
+                WHERE StateName = {0}
+                """, state.StateName).FirstOrDefaultAsync();
 
-            if (existingState != null)
+            if (existingState > 0)
                 return Results.BadRequest($"State '{state.StateName}' already exists");
 
             db.States.Add(state);
             await db.SaveChangesAsync();
-            
-            return Results.Created($"/api/minimal/states/{state.StateId}", 
+
+            return Results.Created($"/api/minimal/states/{state.StateId}",
                 new { state.StateId, state.StateName, state.NationalId });
         }
         catch (Exception ex)
@@ -377,13 +366,12 @@ public static class OrganizationEndpoints
                 LEFT JOIN Members m ON u.UnitId = m.UnitId
                 WHERE n.NationalId = {0}
                 GROUP BY n.NationalId, n.NationalName
-                """, id).ToListAsync();
+                """, id).FirstOrDefaultAsync();
 
-            var nationalDetail = national.FirstOrDefault();
-            if (nationalDetail == null)
+            if (national == null)
                 return Results.NotFound($"National with ID {id} not found");
 
-            return Results.Ok(nationalDetail);
+            return Results.Ok(national);
         }
         catch (Exception ex)
         {

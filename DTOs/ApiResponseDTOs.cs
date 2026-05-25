@@ -240,6 +240,21 @@ public class HierarchyDto
     public string? UnitName { get; set; }
     public int MemberCount { get; set; }
 }
+
+public class DashboardStatsCountsDto
+{
+    public int TotalMembers { get; set; }
+    public int TotalUnits { get; set; }
+    public int TotalDepartments { get; set; }
+    public int TotalStates { get; set; }
+    public int TotalNationals { get; set; }
+    public int TotalLevels { get; set; }
+    public int ExcoMembers { get; set; }
+    public int NationalExcoCount { get; set; }
+    public int StateExcoCount { get; set; }
+    public int UnitExcoCount { get; set; }
+}
+
 // Hierarchy Node DTOs
 public record HierarchyNationalNodeDto(
     int NationalId,

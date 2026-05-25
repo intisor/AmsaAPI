@@ -6,12 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AmsaAPI.FastEndpoints;
 
-// Private record DTOs for raw SQL projections - minimal and functional
-file record UnitDetailRawDto(int UnitId, string UnitName, int StateId, string StateName, int NationalId, string NationalName, int MemberCount);
-file record UnitMemberRawDto(int MemberId, string FirstName, string LastName, string? Email, string? Phone, int Mkanid);
-file record UnitExcoRawDto(string FirstName, string LastName, int Mkanid, string DepartmentName, string LevelType);
-file record NationalSummaryRawDto(int NationalId, string NationalName, int StateCount, int UnitCount, int MemberCount, int ExcoCount);
-
 // Get All Units Endpoint
 public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyRequest, List<UnitSummaryDto>>
 {
@@ -35,7 +29,10 @@ public sealed class GetAllUnitsEndpoint(AmsaDbContext db) : Endpoint<EmptyReques
                 NationalName = u.State.National.NationalName,
                 MemberCount = u.Members.Count()
             })
+            .OrderBy(u => u.StateName)
+            .ThenBy(u => u.UnitName)
             .ToListAsync(ct);
+
         await Send.OkAsync(units, ct);
     }
 }
@@ -53,7 +50,6 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
 
     public override async Task HandleAsync(GetUnitByIdRequest req, CancellationToken ct)
     {
-        // Use Result pattern for input validation
         var validationResult = OrganizationValidationMethods.ValidateUnitRequest(req);
         if (!validationResult.IsSuccess)
         {
@@ -61,7 +57,6 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
             return;
         }
 
-        // Fetch unit details using standard LINQ to avoid SqlQueryRaw bug in EF Core 10
         var unit = await db.Units
             .AsNoTracking()
             .Where(u => u.UnitId == req.Id)
@@ -83,7 +78,6 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
             return;
         }
 
-        // Get members for this unit
         var members = await db.Members
             .AsNoTracking()
             .Where(m => m.UnitId == req.Id)
@@ -100,7 +94,6 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
             .ThenBy(m => m.LastName)
             .ToListAsync(ct);
 
-        // Get EXCO roles for this unit
         var excoMembers = await db.MemberLevelDepartments
             .AsNoTracking()
             .Where(mld => mld.LevelDepartment.Level.UnitId == req.Id)
@@ -112,6 +105,7 @@ public sealed class GetUnitByIdEndpoint(AmsaDbContext db) : Endpoint<GetUnitById
                 DepartmentName = mld.LevelDepartment.Department.DepartmentName,
                 LevelType = mld.LevelDepartment.Level.LevelType
             })
+            .OrderBy(x => x.DepartmentName)
             .ToListAsync(ct);
 
         var response = new UnitDetailResponse
@@ -137,7 +131,6 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
 
     public override async Task HandleAsync(GetUnitsByStateRequest req, CancellationToken ct)
     {
-        // Use Result pattern for input validation
         var validationResult = OrganizationValidationMethods.ValidateStateRequest(req);
         if (!validationResult.IsSuccess)
         {
@@ -145,7 +138,7 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
             return;
         }
 
-        var query = db.Units
+        var units = await db.Units
             .AsNoTracking()
             .Where(u => u.StateId == req.StateId)
             .Select(u => new UnitStateDto
@@ -153,11 +146,10 @@ public sealed class GetUnitsByStateEndpoint(AmsaDbContext db) : Endpoint<GetUnit
                 UnitId = u.UnitId,
                 UnitName = u.UnitName,
                 MemberCount = u.Members.Count(),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.UnitId == u.UnitId)
+                ExcoCount = db.MemberLevelDepartments.Count(mld => mld.LevelDepartment.Level.UnitId == u.UnitId)
             })
-            .OrderBy(u => u.UnitName);      
-        var units = await query.ToListAsync(ct);
+            .OrderBy(u => u.UnitName)
+            .ToListAsync(ct);
 
         await Send.OkAsync(units, ct);
     }
@@ -175,7 +167,7 @@ public sealed class GetAllStatesEndpoint(AmsaDbContext db) : Endpoint<EmptyReque
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        var query = db.States
+        var states = await db.States
             .AsNoTracking()
             .Select(s => new StateSummaryDto
             {
@@ -184,11 +176,10 @@ public sealed class GetAllStatesEndpoint(AmsaDbContext db) : Endpoint<EmptyReque
                 NationalName = s.National.NationalName,
                 UnitCount = s.Units.Count(),
                 MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+                ExcoCount = db.MemberLevelDepartments.Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
             })
-            .OrderBy(s => s.StateId); 
-        var states = await query.ToListAsync(ct);
+            .OrderBy(s => s.StateId)
+            .ToListAsync(ct);
 
         await Send.OkAsync(states, ct);
     }
@@ -206,7 +197,6 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
 
     public override async Task HandleAsync(GetStateByIdRequest req, CancellationToken ct)
     {
-        // Use Result pattern for input validation
         var validationResult = OrganizationValidationMethods.ValidateStateIdRequest(req);
         if (!validationResult.IsSuccess)
         {
@@ -214,7 +204,7 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
             return;
         }
 
-        var query = db.States
+        var state = await db.States
             .AsNoTracking()
             .Where(s => s.StateId == req.Id)
             .Select(s => new StateSummaryDto
@@ -224,11 +214,10 @@ public sealed class GetStateByIdEndpoint(AmsaDbContext db) : Endpoint<GetStateBy
                 NationalName = s.National.NationalName,
                 UnitCount = s.Units.Count(),
                 MemberCount = db.Members.Count(m => m.Unit.StateId == s.StateId),
-                ExcoCount = db.MemberLevelDepartments
-                              .Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
-            });
+                ExcoCount = db.MemberLevelDepartments.Count(mld => mld.LevelDepartment.Level.StateId == s.StateId)
+            })
+            .FirstOrDefaultAsync(ct);
 
-        var state = await query.FirstOrDefaultAsync(ct);
         if (state == null)
         {
             await Send.NotFoundAsync(ct);
@@ -251,7 +240,6 @@ public sealed class GetAllNationalsEndpoint(AmsaDbContext db) : Endpoint<EmptyRe
 
     public override async Task HandleAsync(EmptyRequest req, CancellationToken ct)
     {
-        // Use standard LINQ instead of SqlQueryRaw to avoid EF Core 10 bug
         var nationals = await db.Nationals
             .AsNoTracking()
             .Select(n => new NationalSummaryDto
@@ -282,7 +270,6 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
 
     public override async Task HandleAsync(GetNationalByIdRequest req, CancellationToken ct)
     {
-        // Use Result pattern for input validation
         var validationResult = OrganizationValidationMethods.ValidateNationalRequest(req);
         if (!validationResult.IsSuccess)
         {
@@ -290,7 +277,7 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
             return;
         }
 
-        var query = db.Nationals
+        var nationalDetail = await db.Nationals
             .AsNoTracking()
             .Where(n => n.NationalId == req.Id)
             .Select(n => new NationalDetailDto
@@ -300,9 +287,9 @@ public sealed class GetNationalByIdEndpoint(AmsaDbContext db) : Endpoint<GetNati
                 StateCount = n.States.Count(),
                 UnitCount = n.States.SelectMany(s => s.Units).Count(),
                 MemberCount = db.Members.Count(m => m.Unit.State.NationalId == n.NationalId)
-            });
+            })
+            .FirstOrDefaultAsync(ct);
 
-        var nationalDetail = await query.FirstOrDefaultAsync(ct);
         if (nationalDetail == null)
         {
             await Send.NotFoundAsync(ct);
@@ -320,7 +307,7 @@ public static class OrganizationValidationMethods
     {
         if (req.Id <= 0)
             return Result.Validation<bool>("Invalid unit ID. ID must be greater than 0.");
-        
+
         return Result.Success(true);
     }
 
@@ -328,7 +315,7 @@ public static class OrganizationValidationMethods
     {
         if (req.StateId <= 0)
             return Result.Validation<bool>("Invalid state ID. ID must be greater than 0.");
-        
+
         return Result.Success(true);
     }
 
@@ -336,7 +323,7 @@ public static class OrganizationValidationMethods
     {
         if (req.Id <= 0)
             return Result.Validation<bool>("Invalid state ID. ID must be greater than 0.");
-        
+
         return Result.Success(true);
     }
 
@@ -344,7 +331,7 @@ public static class OrganizationValidationMethods
     {
         if (req.Id <= 0)
             return Result.Validation<bool>("Invalid national ID. ID must be greater than 0.");
-        
+
         return Result.Success(true);
     }
 }

@@ -12,13 +12,13 @@ public static class StatisticsEndpoints
 
         // Get dashboard statistics
         statsGroup.MapGet("/dashboard", GetDashboardStats);
-        
+
         // Get unit statistics
         statsGroup.MapGet("/units", GetUnitStats);
-        
+
         // Get department statistics
         statsGroup.MapGet("/departments", GetDepartmentStats);
-        
+
         // Get organization summary
         statsGroup.MapGet("/organization-summary", GetOrganizationSummary);
     }
@@ -27,43 +27,39 @@ public static class StatisticsEndpoints
     {
         try
         {
-            // Get recent members
-            var recentMembers = await db.Members
-                .OrderByDescending(m => m.MemberId)
-                .Take(5)
-                .Select(m => new RecentMemberDto
-                {
-                    FirstName = m.FirstName,
-                    LastName = m.LastName,
-                    Mkanid = m.Mkanid
-                })
-                .ToListAsync();
+            var counts = await db.Database.SqlQueryRaw<DashboardStatsCountsDto>("""
+                SELECT
+                    (SELECT COUNT(*) FROM Members) as TotalMembers,
+                    (SELECT COUNT(*) FROM Units) as TotalUnits,
+                    (SELECT COUNT(*) FROM Departments) as TotalDepartments,
+                    (SELECT COUNT(*) FROM States) as TotalStates,
+                    (SELECT COUNT(*) FROM Nationals) as TotalNationals,
+                    (SELECT COUNT(*) FROM Levels) as TotalLevels,
+                    (SELECT COUNT(*) FROM MemberLevelDepartments) as ExcoMembers,
+                    (SELECT COUNT(*) FROM Levels WHERE NationalId IS NOT NULL) as NationalExcoCount,
+                    (SELECT COUNT(*) FROM Levels WHERE StateId IS NOT NULL) as StateExcoCount,
+                    (SELECT COUNT(*) FROM Levels WHERE UnitId IS NOT NULL) as UnitExcoCount
+                """).FirstOrDefaultAsync() ?? new DashboardStatsCountsDto();
+
+            var recentMembers = await db.Database.SqlQueryRaw<RecentMemberDto>("""
+                SELECT TOP 5 FirstName, LastName, Mkanid
+                FROM Members
+                ORDER BY MemberId DESC
+                """).ToListAsync();
 
             var response = new DashboardStatsResponse
             {
-                TotalMembers = await db.Members.CountAsync(),
-                TotalUnits = await db.Units.CountAsync(),
-                TotalDepartments = await db.Departments.CountAsync(),
-                TotalStates = await db.States.CountAsync(),
-                TotalNationals = await db.Nationals.CountAsync(),
-                TotalLevels = await db.Levels.CountAsync(),
-                ExcoMembers = await db.MemberLevelDepartments.CountAsync(),
+                TotalMembers = counts.TotalMembers,
+                TotalUnits = counts.TotalUnits,
+                TotalDepartments = counts.TotalDepartments,
+                TotalStates = counts.TotalStates,
+                TotalNationals = counts.TotalNationals,
+                TotalLevels = counts.TotalLevels,
+                ExcoMembers = counts.ExcoMembers,
                 RecentMembers = recentMembers,
-                NationalExcoCount = await db.Levels
-                    .Where(l => l.NationalId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync(),
-                StateExcoCount = await db.Levels
-                    .Where(l => l.StateId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync(),
-                UnitExcoCount = await db.Levels
-                    .Where(l => l.UnitId != null)
-                    .SelectMany(l => l.LevelDepartments)
-                    .SelectMany(ld => ld.MemberLevelDepartments)
-                    .CountAsync()
+                NationalExcoCount = counts.NationalExcoCount,
+                StateExcoCount = counts.StateExcoCount,
+                UnitExcoCount = counts.UnitExcoCount
             };
 
             return Results.Ok(response);
@@ -75,31 +71,29 @@ public static class StatisticsEndpoints
     }
 
     private static async Task<IResult> GetUnitStats(AmsaDbContext db)
-     {
-         try
-         {
-             var unitStats = await db.Database
-                 .SqlQueryRaw<UnitStatsDto>("""
-                     SELECT u.UnitId, u.UnitName, s.StateName,
-                            COUNT(DISTINCT m.MemberId) as MemberCount,
-                            COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
-                     FROM Units u
-                     INNER JOIN States s ON u.StateId = s.StateId
-                     LEFT JOIN Members m ON u.UnitId = m.UnitId
-                     LEFT JOIN Levels l ON u.UnitId = l.UnitId
-                     LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
-                     LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
-                     GROUP BY u.UnitId, u.UnitName, s.StateName
-                 """)
-                 .ToListAsync();
+    {
+        try
+        {
+            var unitStats = await db.Database.SqlQueryRaw<UnitStatsDto>("""
+                SELECT u.UnitId, u.UnitName, s.StateName,
+                       COUNT(DISTINCT m.MemberId) as MemberCount,
+                       COUNT(DISTINCT mld.MemberLevelDepartmentId) as ExcoCount
+                FROM Units u
+                INNER JOIN States s ON u.StateId = s.StateId
+                LEFT JOIN Members m ON u.UnitId = m.UnitId
+                LEFT JOIN Levels l ON u.UnitId = l.UnitId
+                LEFT JOIN LevelDepartments ld ON l.LevelId = ld.LevelId
+                LEFT JOIN MemberLevelDepartments mld ON ld.LevelDepartmentId = mld.LevelDepartmentId
+                GROUP BY u.UnitId, u.UnitName, s.StateName
+                """).ToListAsync();
 
-             return Results.Ok(unitStats);
-         }
-         catch (Exception ex)
-         {
-             return Results.Problem($"Error retrieving unit statistics: {ex.Message}");
-         }
-     }
+            return Results.Ok(unitStats);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Error retrieving unit statistics: {ex.Message}");
+        }
+    }
 
     private static async Task<IResult> GetDepartmentStats(AmsaDbContext db)
     {
@@ -131,7 +125,17 @@ public static class StatisticsEndpoints
     {
         try
         {
-            // Get top units
+            var overview = await db.Database.SqlQueryRaw<OverviewDto>("""
+                SELECT
+                    (SELECT COUNT(*) FROM Nationals) as TotalNationals,
+                    (SELECT COUNT(*) FROM States) as TotalStates,
+                    (SELECT COUNT(*) FROM Units) as TotalUnits,
+                    (SELECT COUNT(*) FROM Members) as TotalMembers,
+                    (SELECT COUNT(*) FROM Departments) as TotalDepartments,
+                    (SELECT COUNT(*) FROM Levels) as TotalLevels,
+                    (SELECT COUNT(*) FROM MemberLevelDepartments) as TotalExcoPositions
+                """).FirstOrDefaultAsync() ?? new OverviewDto();
+
             var topUnits = await db.Database.SqlQueryRaw<TopUnitDto>("""
                 SELECT TOP 10 u.UnitName, s.StateName as State, COUNT(m.MemberId) as MemberCount
                 FROM Units u
@@ -141,7 +145,6 @@ public static class StatisticsEndpoints
                 ORDER BY COUNT(m.MemberId) DESC
                 """).ToListAsync();
 
-            // Get top departments
             var topDepartments = await db.Database.SqlQueryRaw<TopDepartmentDto>("""
                 SELECT TOP 10 d.DepartmentName, COUNT(mld.MemberLevelDepartmentId) as MemberCount
                 FROM Departments d
@@ -151,36 +154,20 @@ public static class StatisticsEndpoints
                 ORDER BY COUNT(mld.MemberLevelDepartmentId) DESC
                 """).ToListAsync();
 
+            var excoBreakdown = await db.Database.SqlQueryRaw<ExcoBreakdownDto>("""
+                SELECT
+                    COUNT(CASE WHEN l.NationalId IS NOT NULL THEN 1 END) as NationalExco,
+                    COUNT(CASE WHEN l.StateId IS NOT NULL THEN 1 END) as StateExco,
+                    COUNT(CASE WHEN l.UnitId IS NOT NULL THEN 1 END) as UnitExco
+                FROM MemberLevelDepartments mld
+                INNER JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+                INNER JOIN Levels l ON ld.LevelId = l.LevelId
+                """).FirstOrDefaultAsync() ?? new ExcoBreakdownDto();
+
             var response = new OrganizationSummaryResponse
             {
-                Overview = new OverviewDto
-                {
-                    TotalNationals = await db.Nationals.CountAsync(),
-                    TotalStates = await db.States.CountAsync(),
-                    TotalUnits = await db.Units.CountAsync(),
-                    TotalMembers = await db.Members.CountAsync(),
-                    TotalDepartments = await db.Departments.CountAsync(),
-                    TotalLevels = await db.Levels.CountAsync(),
-                    TotalExcoPositions = await db.MemberLevelDepartments.CountAsync()
-                },
-                ExcoBreakdown = new ExcoBreakdownDto
-                {
-                    NationalExco = await db.Levels
-                        .Where(l => l.NationalId != null)
-                        .SelectMany(l => l.LevelDepartments)
-                        .SelectMany(ld => ld.MemberLevelDepartments)
-                        .CountAsync(),
-                    StateExco = await db.Levels
-                        .Where(l => l.StateId != null)
-                        .SelectMany(l => l.LevelDepartments)
-                        .SelectMany(ld => ld.MemberLevelDepartments)
-                        .CountAsync(),
-                    UnitExco = await db.Levels
-                        .Where(l => l.UnitId != null)
-                        .SelectMany(l => l.LevelDepartments)
-                        .SelectMany(ld => ld.MemberLevelDepartments)
-                        .CountAsync()
-                },
+                Overview = overview,
+                ExcoBreakdown = excoBreakdown,
                 TopUnits = topUnits,
                 TopDepartments = topDepartments
             };
