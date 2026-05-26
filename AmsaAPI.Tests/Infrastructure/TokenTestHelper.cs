@@ -10,8 +10,8 @@ namespace AmsaAPI.Tests.Infrastructure;
 /// </summary>
 public static class TokenTestHelper
 {
-    private const string TestSecretKey = "this-is-a-super-secret-key-for-testing-purposes-only-32chars!!!!";
-    private const string TestIssuer = "test-issuer";
+    private const string TestSecretKey = "kDV7RZElNYBOvL0hQqmxcj9SwtIbsT3z";
+    private const string TestIssuer = "AMSAAPI";
 
     public static string GenerateTestToken(
         string appId = "ReportingApp",

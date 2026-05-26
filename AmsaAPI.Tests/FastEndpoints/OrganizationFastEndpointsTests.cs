@@ -16,7 +16,7 @@ public class GetAllUnitsEndpointTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var units = await response.Content.ReadAsAsync<List<UnitSummaryDto>>();
+        var units = await response.Content.ReadFromJsonAsync<List<UnitSummaryDto>>();
         Assert.NotNull(units);
         Assert.Equal(3, units.Count);
     }
@@ -29,7 +29,7 @@ public class GetAllUnitsEndpointTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var units = await response.Content.ReadAsAsync<List<UnitSummaryDto>>();
+        var units = await response.Content.ReadFromJsonAsync<List<UnitSummaryDto>>();
         Assert.NotNull(units);
         Assert.Empty(units);
     }
@@ -46,7 +46,7 @@ public class GetAllUnitsEndpointTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var units = await response.Content.ReadAsAsync<List<UnitSummaryDto>>();
+        var units = await response.Content.ReadFromJsonAsync<List<UnitSummaryDto>>();
         Assert.NotNull(units);
         // Verify ordering - units should be sorted by StateName then UnitName
         for (int i = 1; i < units.Count; i++)
@@ -83,9 +83,9 @@ public class GetUnitByIdEndpointTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadAsAsync<UnitDetailResponse>();
+        var result = await response.Content.ReadFromJsonAsync<UnitDetailResponse>();
         Assert.NotNull(result);
-        Assert.Equal(unit.UnitName, result.UnitName);
+        Assert.Equal(unit.UnitName, result.Unit.UnitName);
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public class GetUnitByIdEndpointTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadAsAsync<UnitDetailResponse>();
+        var result = await response.Content.ReadFromJsonAsync<UnitDetailResponse>();
         Assert.NotNull(result);
-        Assert.True(result.MemberCount > 0);
+        Assert.True(result.Unit.MemberCount > 0);
     }
 }

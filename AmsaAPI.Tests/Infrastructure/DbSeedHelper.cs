@@ -40,11 +40,10 @@ public static class DbSeedHelper
             {
                 FirstName = $"Test{i}",
                 LastName = $"Member{i}",
-                MkanId = 1000 + i,
+                Mkanid = 1000 + i,
                 UnitId = unit.UnitId,
-                Gender = "M",
                 Email = $"test{i}@example.com",
-                PhoneNumber = $"0800000000{i}"
+                Phone = $"0800000000{i}"
             });
         }
 
@@ -89,8 +88,7 @@ public static class DbSeedHelper
         {
             context.Departments.Add(new Department
             {
-                DepartmentName = $"Test Department {i}",
-                DepartmentCode = $"DEP{i:D3}"
+                DepartmentName = $"Test Department {i}"
             });
         }
 

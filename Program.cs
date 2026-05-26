@@ -14,17 +14,27 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddRazorPages();
 
-// Configure DbContext with connection string from appsettings
+// Configure DbContext with appropriate provider based on environment
 builder.Services.AddDbContext<AmsaDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
-            errorNumbersToAdd: null
-        )
-    )
-);
+{
+    if (builder.Environment.IsEnvironment("Test"))
+    {
+        // Test environment will configure SQLite in WebApplicationFactory
+        // Do nothing here - let the factory configure it
+    }
+    else
+    {
+        // Production and development use SQL Server
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sqlOptions => sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorNumbersToAdd: null
+            )
+        );
+    }
+});
 
 builder.Services.AddFastEndpoints();
 
@@ -78,27 +88,30 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Apply migrations and seed data
-using (var scope = app.Services.CreateScope())
+// Apply migrations and seed data (skip for Test environment)
+if (!app.Environment.IsEnvironment("Test"))
 {
-    var db = scope.ServiceProvider.GetRequiredService<AmsaDbContext>();
-    db.Database.Migrate();
-
-    // Seed ReportingApp if missing
-    var reportingApp = await db.AppRegistrations.FirstOrDefaultAsync(a => a.AppId == "ReportingApp");
-    if (reportingApp is null)
+    using (var scope = app.Services.CreateScope())
     {
-        db.AppRegistrations.Add(new AppRegistration
+        var db = scope.ServiceProvider.GetRequiredService<AmsaDbContext>();
+        db.Database.Migrate();
+
+        // Seed ReportingApp if missing
+        var reportingApp = await db.AppRegistrations.FirstOrDefaultAsync(a => a.AppId == "ReportingApp");
+        if (reportingApp is null)
         {
-            AppId = "ReportingApp",
-            AppName = "AMSA Reporting Application",
-            // Replace with a securely stored hash of the app secret in production
-            AppSecretHash = "test-secret-123-hash",
-            AllowedScopes = "[\"read:members\", \"read:statistics\", \"read:organization\"]",
-            TokenExpirationHours = 2,
-            IsActive = true
-        });
-        await db.SaveChangesAsync();
+            db.AppRegistrations.Add(new AppRegistration
+            {
+                AppId = "ReportingApp",
+                AppName = "AMSA Reporting Application",
+                // Replace with a securely stored hash of the app secret in production
+                AppSecretHash = "test-secret-123-hash",
+                AllowedScopes = "[\"read:members\", \"read:statistics\", \"read:organization\"]",
+                TokenExpirationHours = 2,
+                IsActive = true
+            });
+            await db.SaveChangesAsync();
+        }
     }
 }
 
@@ -139,3 +152,5 @@ app.MapStatisticsEndpoints();
 app.MapImportEndpoints();
 
 app.Run();
+
+public partial class Program;

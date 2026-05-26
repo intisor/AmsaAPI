@@ -16,7 +16,7 @@ public class DepartmentEndpointsTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var departments = await response.Content.ReadAsAsync<List<DepartmentDto>>();
+        var departments = await response.Content.ReadFromJsonAsync<List<DepartmentSummaryDto>>();
         Assert.NotNull(departments);
         Assert.Equal(3, departments.Count);
     }
@@ -29,7 +29,7 @@ public class DepartmentEndpointsTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var departments = await response.Content.ReadAsAsync<List<DepartmentDto>>();
+        var departments = await response.Content.ReadFromJsonAsync<List<DepartmentSummaryDto>>();
         Assert.NotNull(departments);
         Assert.Empty(departments);
     }
@@ -46,7 +46,7 @@ public class DepartmentEndpointsTests : IntegrationTestBase
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadAsAsync<DepartmentDto>();
+        var result = await response.Content.ReadFromJsonAsync<DepartmentDetailResponse>();
         Assert.NotNull(result);
         Assert.Equal(department.DepartmentName, result.DepartmentName);
     }

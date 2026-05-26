@@ -16,8 +16,8 @@ public static class CustomAssertions
         string? message = null) where T : class
     {
         Assert.Equal(expected.StatusCode, actual.StatusCode);
-        var expectedContent = await expected.Content.ReadAsAsync<T>();
-        var actualContent = await actual.Content.ReadAsAsync<T>();
+        var expectedContent = await expected.Content.ReadFromJsonAsync<T>();
+        var actualContent = await actual.Content.ReadFromJsonAsync<T>();
         Assert.Equal(expectedContent, actualContent);
     }
 

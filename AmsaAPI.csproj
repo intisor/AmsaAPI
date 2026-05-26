@@ -33,7 +33,12 @@
 
   <!-- Exclude benchmark source files from compilation so benchmark-specific code doesn't require BenchmarkDotNet packages -->
   <ItemGroup>
-    <Compile Remove="Benchmarks\\**\\*.cs" />
+    <Compile Remove="Benchmarks\**\*.cs" />
+    <Compile Remove="AmsaAPI.Tests\**\*.cs" />
+    <Compile Remove="Tests\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AmsaAPI.Tests\Utilities\LegacyDtoAliases.cs" />
   </ItemGroup>
 
 </Project>

@@ -12,7 +12,7 @@ public class AuthenticationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.NotEqual(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
@@ -26,7 +26,7 @@ public class AuthenticationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", invalidToken);
 
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
@@ -40,7 +40,7 @@ public class AuthenticationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", expiredToken);
 
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
@@ -50,7 +50,7 @@ public class AuthenticationTests : IntegrationTestBase
     public async Task NoToken_WithAuthenticatedEndpoint_ReturnsForbidden()
     {
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
@@ -64,7 +64,7 @@ public class AuthenticationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
@@ -77,12 +77,10 @@ public class EndpointAuthorizationTests : IntegrationTestBase
     public async Task AllowAnonymousEndpoint_WithoutToken_ReturnsOk()
     {
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/members");
 
         // Assert - If endpoint is marked AllowAnonymous, it should work
-        Assert.True(response.StatusCode == System.Net.HttpStatusCode.OK ||
-                    response.StatusCode == System.Net.HttpStatusCode.Unauthorized,
-                    "Endpoint should either allow anonymous or require auth");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -93,7 +91,7 @@ public class EndpointAuthorizationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         // Act
-        var response = await Client.GetAsync("/api/units");
+        var response = await Client.GetAsync("/api/units/1");
 
         // Assert
         Assert.NotEqual(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);

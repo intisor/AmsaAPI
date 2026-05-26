@@ -21,7 +21,8 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public async Task InitializeAsync()
     {
         DbContext = await Factory.CreateDbContextAsync();
-        await DbContext.Database.EnsureCreatedAsync();
+        // EnsureCreatedAsync is already called in Program.cs for Test environment
+        // Just ensure we have access to a fresh context
     }
 
     public async Task DisposeAsync()

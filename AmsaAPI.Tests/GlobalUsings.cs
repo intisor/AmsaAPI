@@ -3,3 +3,7 @@ global using Microsoft.AspNetCore.Mvc.Testing;
 global using Microsoft.EntityFrameworkCore;
 global using System.Net;
 global using System.Net.Http.Json;
+global using AmsaAPI.Tests.Utilities;
+global using AmsaAPI.Tests.Infrastructure;
+global using AmsaAPI.Data;
+global using AmsaAPI.Models;

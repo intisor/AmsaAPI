@@ -28,10 +28,9 @@ public class TestDataBuilder
         {
             FirstName = "Test",
             LastName = "Member",
-            MkanId = new Random().Next(10000, 99999),
-            Gender = "M",
+            Mkanid = new Random().Next(10000, 99999),
             Email = "test@example.com",
-            PhoneNumber = "08000000000"
+            Phone = "08000000000"
         };
 
         public MemberBuilder WithFirstName(string firstName)
@@ -48,7 +47,7 @@ public class TestDataBuilder
 
         public MemberBuilder WithMkanId(int mkanId)
         {
-            _member.MkanId = mkanId;
+            _member.Mkanid = mkanId;
             return this;
         }
 
@@ -100,8 +99,7 @@ public class TestDataBuilder
     {
         private Department _dept = new()
         {
-            DepartmentName = "Test Department",
-            DepartmentCode = "TD001"
+            DepartmentName = "Test Department"
         };
 
         public DepartmentBuilder WithName(string name)
@@ -112,7 +110,6 @@ public class TestDataBuilder
 
         public DepartmentBuilder WithCode(string code)
         {
-            _dept.DepartmentCode = code;
             return this;
         }
 

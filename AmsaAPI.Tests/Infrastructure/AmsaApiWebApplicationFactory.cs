@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AmsaAPI.Tests.Infrastructure;
 
 /// <summary>
-/// Custom WebApplicationFactory for integration tests that configures an in-memory SQLite database
+/// Custom WebApplicationFactory for integration tests that configures an isolated in-memory database
 /// </summary>
 public class AmsaApiWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -16,19 +16,18 @@ public class AmsaApiWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.ConfigureServices(services =>
         {
-            // Remove the default DbContext registration
-            var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(DbContextOptions<AmsaDbContext>));
+            // Remove the default DbContext configuration
+            var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<AmsaDbContext>));
             if (descriptor != null)
             {
                 services.Remove(descriptor);
             }
 
-            // Add in-memory SQLite database for testing
+            // Use in-memory database for testing
             services.AddDbContext<AmsaDbContext>(options =>
-            {
-                // Use in-memory SQLite for isolation between tests
-                options.UseSqlite($"Data Source=:memory:{_databaseName};");
-            });
+                options.UseInMemoryDatabase(_databaseName),
+                contextLifetime: ServiceLifetime.Scoped,
+                optionsLifetime: ServiceLifetime.Scoped);
         });
 
         builder.UseEnvironment("Test");
@@ -43,5 +42,10 @@ public class AmsaApiWebApplicationFactory : WebApplicationFactory<Program>
         var context = scope.ServiceProvider.GetRequiredService<AmsaDbContext>();
         await context.Database.EnsureCreatedAsync();
         return context;
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
     }
 }
