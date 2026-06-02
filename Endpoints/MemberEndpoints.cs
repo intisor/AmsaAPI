@@ -7,6 +7,22 @@ namespace AmsaAPI.Endpoints;
 
 public static class MemberEndpoints
 {
+    private sealed record FlatMemberRecord(
+        int MemberId,
+        string FirstName,
+        string LastName,
+        string? Email,
+        string? Phone,
+        int Mkanid,
+        int UnitId,
+        string UnitName,
+        int StateId,
+        string StateName,
+        int NationalId,
+        string NationalName,
+        string? DepartmentName,
+        string? LevelType);
+
     public static void MapMemberEndpoints(this WebApplication app)
     {
         var memberGroup = app.MapGroup("/api/minimal/members").WithTags("Members (Minimal API)");
@@ -43,27 +59,7 @@ public static class MemberEndpoints
     {
         try
         {
-            var members = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
-                SELECT 
-                    m.MemberId,
-                    m.FirstName,
-                    m.LastName,
-                    m.Email,
-                    m.Phone,
-                    m.Mkanid,
-                    u.UnitId,
-                    u.UnitName,
-                    s.StateId,
-                    s.StateName,
-                    n.NationalId,
-                    n.NationalName
-                FROM Members m
-                INNER JOIN Units u ON m.UnitId = u.UnitId
-                INNER JOIN States s ON u.StateId = s.StateId
-                INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                ORDER BY m.FirstName, m.LastName
-                """).ToListAsync();
-
+            var members = await QueryMemberDetailsAsync(db);
             return Results.Ok(members);
         }
         catch (Exception ex)
@@ -76,31 +72,12 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
-                SELECT 
-                    m.MemberId,
-                    m.FirstName,
-                    m.LastName,
-                    m.Email,
-                    m.Phone,
-                    m.Mkanid,
-                    u.UnitId,
-                    u.UnitName,
-                    s.StateId,
-                    s.StateName,
-                    n.NationalId,
-                    n.NationalName
-                FROM Members m
-                INNER JOIN Units u ON m.UnitId = u.UnitId
-                INNER JOIN States s ON u.StateId = s.StateId
-                INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                WHERE m.MemberId = {0}
-                """, id).FirstOrDefaultAsync();
+            var member = await QueryMemberDetailsAsync(db, "WHERE m.MemberId = {0}", id);
 
-            if (member == null)
+            if (member.Count == 0)
                 return Results.NotFound($"Member with ID {id} not found");
 
-            return Results.Ok(member);
+            return Results.Ok(member[0]);
         }
         catch (Exception ex)
         {
@@ -112,31 +89,12 @@ public static class MemberEndpoints
     {
         try
         {
-            var member = await db.Database.SqlQueryRaw<MemberDetailResponse>("""
-                SELECT 
-                    m.MemberId,
-                    m.FirstName,
-                    m.LastName,
-                    m.Email,
-                    m.Phone,
-                    m.Mkanid,
-                    u.UnitId,
-                    u.UnitName,
-                    s.StateId,
-                    s.StateName,
-                    n.NationalId,
-                    n.NationalName
-                FROM Members m
-                INNER JOIN Units u ON m.UnitId = u.UnitId
-                INNER JOIN States s ON u.StateId = s.StateId
-                INNER JOIN Nationals n ON s.NationalId = n.NationalId
-                WHERE m.Mkanid = {0}
-                """, mkanId).FirstOrDefaultAsync();
+            var member = await QueryMemberDetailsAsync(db, "WHERE m.Mkanid = {0}", mkanId);
 
-            if (member == null)
+            if (member.Count == 0)
                 return Results.NotFound($"Member with MKAN ID {mkanId} not found");
 
-            return Results.Ok(member);
+            return Results.Ok(member[0]);
         }
         catch (Exception ex)
         {
@@ -144,16 +102,85 @@ public static class MemberEndpoints
         }
     }
 
+    private static async Task<List<MemberDetailResponse>> QueryMemberDetailsAsync(AmsaDbContext db, string whereClause = "", params object[] parameters)
+    {
+        var sql = $"""
+            SELECT 
+                m.MemberId,
+                m.FirstName,
+                m.LastName,
+                m.Email,
+                m.Phone,
+                m.Mkanid,
+                u.UnitId,
+                u.UnitName,
+                s.StateId,
+                s.StateName,
+                n.NationalId,
+                n.NationalName,
+                d.DepartmentName,
+                l.LevelType
+            FROM Members m 
+            INNER JOIN Units u ON m.UnitId = u.UnitId
+            INNER JOIN States s ON u.StateId = s.StateId
+            INNER JOIN Nationals n ON s.NationalId = n.NationalId
+            LEFT JOIN MemberLevelDepartments mld ON m.MemberId = mld.MemberId
+            LEFT JOIN LevelDepartments ld ON mld.LevelDepartmentId = ld.LevelDepartmentId
+            LEFT JOIN Departments d ON ld.DepartmentId = d.DepartmentId
+            LEFT JOIN Levels l ON ld.LevelId = l.LevelId
+            {whereClause}
+            ORDER BY m.FirstName, m.LastName;
+            """;
+
+        var flatRecords = parameters.Length == 0
+            ? await db.Database.SqlQueryRaw<FlatMemberRecord>(sql).ToListAsync()
+            : await db.Database.SqlQueryRaw<FlatMemberRecord>(sql, parameters).ToListAsync();
+
+        return flatRecords
+            .GroupBy(r => r.MemberId)
+            .Select(g =>
+            {
+                var m = g.First();
+                return new MemberDetailResponse
+                {
+                    MemberId = m.MemberId,
+                    FirstName = m.FirstName,
+                    LastName = m.LastName,
+                    Email = m.Email,
+                    Phone = m.Phone,
+                    Mkanid = m.Mkanid,
+                    Unit = new UnitHierarchyDto
+                    {
+                        UnitId = m.UnitId,
+                        UnitName = m.UnitName,
+                        State = new StateHierarchyDto
+                        {
+                            StateId = m.StateId,
+                            StateName = m.StateName,
+                            National = new NationalDto
+                            {
+                                NationalId = m.NationalId,
+                                NationalName = m.NationalName
+                            }
+                        }
+                    },
+                    Roles = g.Where(r => !string.IsNullOrEmpty(r.DepartmentName))
+                        .Select(r => new DepartmentAtLevelDto
+                        {
+                            DepartmentName = r.DepartmentName!,
+                            LevelType = r.LevelType!
+                        })
+                        .ToList()
+                };
+            })
+            .ToList();
+    }
+
     private static async Task<IResult> GetMembersByUnit(int unitId, AmsaDbContext db)
     {
         try
         {
-            var members = await db.Database.SqlQueryRaw<MemberSummaryResponse>("""
-                SELECT m.MemberId, m.FirstName, m.LastName, m.Email, m.Phone, m.Mkanid
-                FROM Members m
-                WHERE m.UnitId = {0}
-                ORDER BY m.FirstName, m.LastName
-                """, unitId).ToListAsync();
+            var members = await QueryMemberDetailsAsync(db, "WHERE m.UnitId = {0}", unitId);
 
             return members.Count != 0
                 ? Results.Ok(members)
